@@ -1,11 +1,26 @@
 <!DOCTYPE html>
+<!--
+  ╔══════════════════════════════════════════════════════════════╗
+  ║         FREESTYLE LIBRE 3 — SENSOR MANAGER                  ║
+  ║         Erstellt von: Matthias Kuchler                       ║
+  ╠══════════════════════════════════════════════════════════════╣
+  ║  VERSION   DATUM         ÄNDERUNG                           ║
+  ║  ─────────────────────────────────────────────────────────  ║
+  ║  v1.0.0    2025-05-01    Initiale Version (localStorage)    ║
+  ║  v1.1.0    2025-05-01    Haltbarkeits-Statistik             ║
+  ║  v1.2.0    2025-05-01    Statistik-Tab, Monatsübersicht     ║
+  ║  v1.3.0    2025-05-24    Supabase Cloud-Sync (Echtzeit)     ║
+  ║  v1.3.2    2025-05-24    Supabase anon Key korrigiert        ║
+  ║  v1.3.1    2025-05-24    Versionierung & Ersteller-Info     ║
+  ╚══════════════════════════════════════════════════════════════╝
+-->
 <html lang="de">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
   <meta name="theme-color" content="#0a0f1e" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <title>Libre 3 Sensor Manager</title>
+  <title>Libre 3 Sensor Manager v1.3.2</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
@@ -35,6 +50,20 @@
     }
     .logo-title { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.3rem; letter-spacing: 0.06em; color: #38bdf8; }
     .logo-sub { font-size: 0.62rem; color: #475569; letter-spacing: 0.14em; margin-top: 2px; }
+    .logo-meta { font-size: 0.58rem; color: #334155; letter-spacing: 0.08em; margin-top: 1px; }
+    #version-badge {
+      font-size: 0.62rem; padding: 2px 8px; border-radius: 10px; letter-spacing: 0.08em;
+      background: rgba(56,189,248,0.06); border: 1px solid rgba(56,189,248,0.15);
+      color: #475569; cursor: pointer; transition: border-color 0.15s, color 0.15s;
+      white-space: nowrap;
+    }
+    #version-badge:hover { border-color: rgba(56,189,248,0.4); color: #38bdf8; }
+    .cl-row { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid rgba(56,189,248,0.07); }
+    .cl-row:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+    .cl-tag { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 0.88rem; color: #38bdf8; min-width: 54px; }
+    .cl-tag.latest { color: #22d3ee; }
+    .cl-date { font-size: 0.63rem; color: #475569; min-width: 82px; }
+    .cl-desc { font-size: 0.74rem; color: #94a3b8; }
     #sync-indicator {
       font-size: 0.68rem; padding: 4px 10px; border-radius: 20px;
       border: 1px solid rgba(56,189,248,0.3); color: #38bdf8;
@@ -175,8 +204,10 @@
   <div>
     <div class="logo-title">LIBRE 3</div>
     <div class="logo-sub">SENSOR MANAGER</div>
+    <div class="logo-meta">© Matthias Kuchler</div>
   </div>
-  <div style="display:flex;align-items:center;gap:10px">
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+    <button id="version-badge" onclick="document.getElementById('modal-changelog').classList.add('show')">v1.3.2</button>
     <div id="sync-indicator">
       <div id="sync-dot" class="loading"></div>
       <span id="sync-text">Verbinde...</span>
@@ -246,10 +277,58 @@
   </div>
 </div>
 
-<script>
+<!-- Changelog Modal -->
+<div class="modal-overlay" id="modal-changelog">
+  <div class="modal-box" style="max-width:460px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <div>
+        <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:1rem;letter-spacing:0.04em">Versionshistorie</div>
+        <div style="font-size:0.65rem;color:#475569;margin-top:2px;letter-spacing:0.08em">© Matthias Kuchler · Libre 3 Sensor Manager</div>
+      </div>
+      <button onclick="document.getElementById('modal-changelog').classList.remove('show')" style="background:transparent;border:1px solid #334155;border-radius:6px;color:#64748b;padding:5px 10px;cursor:pointer;font-size:0.8rem">✕</button>
+    </div>
+
+    <div class="cl-row">
+      <div class="cl-tag latest">v1.3.2</div>
+      <div class="cl-date">24.05.2025</div>
+      <div class="cl-desc">Supabase anon Key korrigiert — Verbindung stabil</div>
+    </div>
+    <div class="cl-row">
+      <div class="cl-tag">v1.3.1</div>
+      <div class="cl-date">24.05.2025</div>
+      <div class="cl-desc">Versionierung, Ersteller-Info & Changelog</div>
+    </div>
+    <div class="cl-row">
+      <div class="cl-tag">v1.3.0</div>
+      <div class="cl-date">24.05.2025</div>
+      <div class="cl-desc">Supabase Cloud-Sync — Echtzeit-Synchronisation auf allen Geräten</div>
+    </div>
+    <div class="cl-row">
+      <div class="cl-tag">v1.2.0</div>
+      <div class="cl-date">24.05.2025</div>
+      <div class="cl-desc">Statistik-Tab mit Kacheln, Balkendiagramm & monatlicher Übersicht</div>
+    </div>
+    <div class="cl-row">
+      <div class="cl-tag">v1.1.0</div>
+      <div class="cl-date">24.05.2025</div>
+      <div class="cl-desc">Haltbarkeits-Statistik-Strip über den Sensor-Tabs</div>
+    </div>
+    <div class="cl-row">
+      <div class="cl-tag">v1.0.0</div>
+      <div class="cl-date">24.05.2025</div>
+      <div class="cl-desc">Initiale Version — Sensor erfassen, Tragedauer, Aktiv/Passiv, localStorage</div>
+    </div>
+
+    <div style="margin-top:18px;padding-top:14px;border-top:1px solid rgba(56,189,248,0.08);font-size:0.65rem;color:#334155;text-align:center;letter-spacing:0.06em">
+      Freestyle Libre 3 Sensor Manager · Supabase EU Frankfurt · GitHub Pages
+    </div>
+  </div>
+</div>
+
+
 // ─── Supabase Init ────────────────────────────────────────────────────────────
 const SUPABASE_URL = 'https://stsauolzfmlnhcvqirtc.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_U-0ntv_8apbs_RXQknkJ-g_GgzFDC8D';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN0c2F1b2x6Zm1sbmhjdnFpcnRjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2NDEzODIsImV4cCI6MjA5NTIxNzM4Mn0.UGch15Q4OpotT_QCkxjN8oyNLZ0dt-nB3PFKlH8fRXI';
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -596,6 +675,7 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
 });
 
 // ─── Backdrop close ───────────────────────────────────────────────────────────
+document.getElementById('modal-changelog').addEventListener('click',e=>{if(e.target===document.getElementById('modal-changelog'))document.getElementById('modal-changelog').classList.remove('show');});
 document.getElementById('modal-form').addEventListener('click',e=>{if(e.target===document.getElementById('modal-form'))closeForm();});
 document.getElementById('modal-delete').addEventListener('click',e=>{if(e.target===document.getElementById('modal-delete')){document.getElementById('modal-delete').classList.remove('show');deleteTargetId=null;}});
 
