@@ -1,13 +1,614 @@
 <!DOCTYPE html>
 <html lang="de">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0a0f1e" />
-    <title>Libre 3 Sensor Manager</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <meta name="theme-color" content="#0a0f1e" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>Libre 3 Sensor Manager</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-tap-highlight-color: transparent; }
+    body {
+      min-height: 100vh;
+      background: linear-gradient(135deg, #0a0f1e 0%, #0d1b35 60%, #061424 100%);
+      font-family: 'DM Mono', 'Fira Mono', 'Courier New', monospace;
+      color: #e8f4ff;
+      overscroll-behavior: none;
+    }
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: #0a0f1e; }
+    ::-webkit-scrollbar-thumb { background: #1e6fb5; border-radius: 2px; }
+    input, select, button { font-family: inherit; outline: none; -webkit-appearance: none; }
+    input:focus { border-color: #38bdf8 !important; box-shadow: 0 0 0 2px rgba(56,189,248,0.15); }
+    input[type="checkbox"] { -webkit-appearance: checkbox; appearance: checkbox; }
+    input[type="date"]::-webkit-calendar-picker-indicator,
+    input[type="datetime-local"]::-webkit-calendar-picker-indicator { filter: invert(0.6); }
+
+    #header {
+      background: rgba(10,20,40,0.9); border-bottom: 1px solid rgba(56,189,248,0.15);
+      padding: 16px 20px; display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 50;
+      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    }
+    .logo-title { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.3rem; letter-spacing: 0.06em; color: #38bdf8; }
+    .logo-sub { font-size: 0.62rem; color: #475569; letter-spacing: 0.14em; margin-top: 2px; }
+    #sync-indicator {
+      font-size: 0.68rem; padding: 4px 10px; border-radius: 20px;
+      border: 1px solid rgba(56,189,248,0.3); color: #38bdf8;
+      background: rgba(56,189,248,0.08); display: flex; align-items: center; gap: 6px;
+    }
+    #sync-dot { width: 7px; height: 7px; border-radius: 50%; background: #38bdf8; }
+    #sync-dot.loading { animation: pulse 1s infinite; background: #f97316; }
+    #sync-dot.error { background: #ef4444; animation: none; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    #btn-new {
+      background: #0e6eb8; border: none; border-radius: 8px; color: #fff;
+      padding: 9px 16px; cursor: pointer; font-size: 0.8rem; font-weight: 500;
+      transition: background 0.15s, transform 0.1s;
+    }
+    #btn-new:active { background: #1d6fb5; transform: scale(0.97); }
+
+    #stats-bar {
+      display: flex; background: rgba(56,189,248,0.06);
+      border-bottom: 1px solid rgba(56,189,248,0.08); padding: 12px 20px;
+    }
+    .stat-box { flex: 1; padding: 4px 8px; }
+    .stat-label { font-size: 0.6rem; color: #475569; letter-spacing: 0.1em; margin-bottom: 2px; }
+    .stat-value { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 1.4rem; }
+
+    #haltb-stats {
+      background: rgba(10,20,40,0.6); border-bottom: 1px solid rgba(56,189,248,0.1);
+      padding: 14px 20px; display: none;
+    }
+    #haltb-stats-title {
+      font-size: 0.62rem; color: #475569; letter-spacing: 0.12em;
+      margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
+    }
+    #haltb-stats-title::after { content: ''; flex: 1; height: 1px; background: rgba(56,189,248,0.1); }
+
+    .haltb-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.04);
+      animation: fadeIn 0.2s ease;
+    }
+    .haltb-row:last-child { border-bottom: none; }
+    .haltb-bar-wrap { flex: 1; height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden; }
+    .haltb-bar-fill { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
+    .haltb-date { font-size: 0.72rem; color: #94a3b8; min-width: 82px; }
+    .haltb-count { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 0.85rem; min-width: 28px; text-align: right; }
+    .haltb-label { font-size: 0.65rem; color: #64748b; min-width: 70px; text-align: right; }
+    .haltb-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+    #tabs { display: flex; border-bottom: 1px solid rgba(56,189,248,0.1); padding: 0 20px; }
+    .tab-btn {
+      background: transparent; border: none; border-bottom: 2px solid transparent;
+      color: #475569; padding: 12px 16px; cursor: pointer; font-size: 0.76rem;
+      letter-spacing: 0.07em; transition: color 0.15s, border-color 0.15s; margin-bottom: -1px;
+    }
+    .tab-btn.active { border-bottom-color: #38bdf8; color: #38bdf8; }
+
+    #sensor-list { padding: 18px 20px; max-width: 700px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+    .empty-state { text-align: center; padding: 60px 0; color: #334155; }
+    .empty-icon { font-size: 2.5rem; margin-bottom: 12px; opacity: 0.3; }
+
+    .sensor-card {
+      background: rgba(13,27,46,0.85); border: 1px solid rgba(56,189,248,0.2);
+      border-radius: 10px; padding: 16px 18px; animation: fadeIn 0.25s ease;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .sensor-card.passiv { opacity: 0.6; border-color: rgba(51,65,85,0.4); }
+    .sensor-card.expired { border-color: rgba(239,68,68,0.3); }
+    @media (hover: hover) { .sensor-card:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(14,100,200,0.2); } }
+    .card-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; }
+    .card-sn { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 1rem; letter-spacing: 0.04em; color: #e8f4ff; }
+    .status-badge { font-size: 0.62rem; padding: 2px 8px; border-radius: 10px; letter-spacing: 0.08em; font-weight: 500; border: 1px solid; margin-left: 8px; }
+    .badge-aktiv { background: rgba(56,189,248,0.12); color: #38bdf8; border-color: rgba(56,189,248,0.3); }
+    .badge-expired { background: rgba(239,68,68,0.15); color: #f87171; border-color: rgba(239,68,68,0.4); }
+    .badge-archiv { background: rgba(71,85,105,0.2); color: #64748b; border-color: #334155; }
+    .card-sub { font-size: 0.7rem; color: #475569; margin-top: 2px; }
+    .card-actions { display: flex; gap: 8px; flex-shrink: 0; }
+    .btn-edit { background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.2); border-radius: 6px; color: #38bdf8; padding: 6px 11px; cursor: pointer; font-size: 0.7rem; }
+    .btn-del { background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.2); border-radius: 6px; color: #f87171; padding: 6px 10px; cursor: pointer; font-size: 0.7rem; }
+    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+    .info-label { font-size: 0.62rem; color: #475569; letter-spacing: 0.07em; margin-bottom: 2px; }
+    .info-value { font-size: 0.76rem; color: #94a3b8; }
+    .info-value.expired { color: #f87171; }
+    .progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .progress-day { font-size: 0.67rem; color: #64748b; }
+    .progress-remain { font-size: 0.67rem; color: #94a3b8; }
+    .progress-remain.expired { color: #f87171; }
+    .progress-track { height: 5px; border-radius: 3px; background: rgba(255,255,255,0.06); overflow: hidden; }
+    .progress-fill { height: 100%; border-radius: 3px; transition: width 1s ease; }
+
+    /* Statistik */
+    .stat-kachel { background: rgba(10,20,40,0.7); border: 1px solid rgba(56,189,248,0.1); border-radius: 8px; padding: 12px 10px; text-align: center; }
+    .stat-kachel-label { font-size: 0.55rem; color: #475569; letter-spacing: 0.1em; margin-bottom: 4px; }
+    .stat-kachel-value { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 1.3rem; }
+
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(5,10,25,0.88);
+      z-index: 100; align-items: center; justify-content: center; padding: 20px;
+      backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+    }
+    .modal-overlay.show { display: flex; }
+    .modal-box {
+      background: #0d1b2e; border: 1px solid rgba(56,189,248,0.2);
+      border-radius: 12px; padding: 24px; width: 100%; max-width: 420px;
+      max-height: 90vh; overflow-y: auto; animation: fadeIn 0.2s ease;
+    }
+    .modal-box.danger { border-color: rgba(239,68,68,0.3); }
+    .modal-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 1rem; margin-bottom: 20px; letter-spacing: 0.04em; }
+    .field-label { font-size: 0.68rem; color: #64748b; letter-spacing: 0.09em; margin-bottom: 5px; margin-top: 14px; }
+    .field-input {
+      width: 100%; background: rgba(255,255,255,0.04); border: 1px solid #1e3a5f;
+      border-radius: 6px; color: #e8f4ff; padding: 9px 12px; font-size: 0.82rem; transition: border-color 0.15s;
+    }
+    .field-input:disabled { opacity: 0.45; }
+    .toggle-row { display: flex; align-items: center; gap: 10px; margin: 16px 0 12px; }
+    .toggle-label { font-size: 0.76rem; color: #94a3b8; }
+    .toggle-wrap { width: 42px; height: 23px; border-radius: 12px; background: #1e293b; border: 1px solid #334155; position: relative; cursor: pointer; transition: background 0.2s, border-color 0.2s; flex-shrink: 0; }
+    .toggle-wrap.on { background: #0e6eb8; border-color: #38bdf8; }
+    .toggle-knob { position: absolute; top: 2px; left: 2px; width: 17px; height: 17px; border-radius: 50%; background: #475569; transition: left 0.2s, background 0.2s; }
+    .toggle-wrap.on .toggle-knob { left: 21px; background: #38bdf8; }
+    .checkbox-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; cursor: pointer; }
+    .checkbox-row input { width: 14px; height: 14px; accent-color: #38bdf8; }
+    .checkbox-row span { font-size: 0.74rem; color: #94a3b8; }
+    .wear-preview { margin-top: 14px; background: rgba(56,189,248,0.06); border: 1px solid rgba(56,189,248,0.15); border-radius: 8px; padding: 10px 14px; font-size: 0.74rem; color: #94a3b8; }
+    .wear-preview span { color: #e8f4ff; font-weight: 500; }
+    .btn-row { display: flex; gap: 10px; margin-top: 22px; }
+    .btn-cancel { flex: 1; background: transparent; border: 1px solid #334155; border-radius: 6px; color: #64748b; padding: 10px; cursor: pointer; font-size: 0.8rem; }
+    .btn-save { flex: 2; background: #0e6eb8; border: none; border-radius: 6px; color: #fff; padding: 10px; cursor: pointer; font-size: 0.8rem; font-weight: 500; }
+    .btn-save:disabled { background: #1e293b; color: #475569; cursor: not-allowed; }
+    .btn-delete-confirm { flex: 1; background: rgba(127,29,29,0.2); border: 1px solid rgba(239,68,68,0.5); border-radius: 6px; color: #f87171; padding: 10px; cursor: pointer; font-size: 0.8rem; }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<div id="header">
+  <div>
+    <div class="logo-title">LIBRE 3</div>
+    <div class="logo-sub">SENSOR MANAGER</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <div id="sync-indicator">
+      <div id="sync-dot" class="loading"></div>
+      <span id="sync-text">Verbinde...</span>
+    </div>
+    <button id="btn-new">+ Neuer Sensor</button>
+  </div>
+</div>
+
+<div id="stats-bar">
+  <div class="stat-box"><div class="stat-label">GESAMT</div><div class="stat-value" id="stat-total" style="color:#e8f4ff">0</div></div>
+  <div class="stat-box"><div class="stat-label">AKTIV</div><div class="stat-value" id="stat-aktiv" style="color:#38bdf8">0</div></div>
+  <div class="stat-box"><div class="stat-label">ARCHIV</div><div class="stat-value" id="stat-passiv" style="color:#64748b">0</div></div>
+</div>
+
+<div id="haltb-stats">
+  <div id="haltb-stats-title">HALTBARKEIT NACH DATUM</div>
+  <div id="haltb-stats-body"></div>
+</div>
+
+<div id="tabs">
+  <button class="tab-btn active" data-tab="aktiv" id="tab-aktiv">Aktiv (0)</button>
+  <button class="tab-btn" data-tab="passiv" id="tab-passiv">Archiv (0)</button>
+  <button class="tab-btn" data-tab="statistik" id="tab-statistik">Statistik</button>
+</div>
+
+<div id="sensor-list"></div>
+
+<!-- Form Modal -->
+<div class="modal-overlay" id="modal-form">
+  <div class="modal-box">
+    <div class="modal-title" id="form-title">Neuen Sensor erfassen</div>
+    <div class="field-label">Seriennummer *</div>
+    <input type="text" class="field-input" id="f-sn" placeholder="z.B. 0M700XXXXX" />
+    <div class="field-label">Haltbarkeitsdatum</div>
+    <input type="date" class="field-input" id="f-haltb" />
+    <div class="toggle-row">
+      <span class="toggle-label">Status:</span>
+      <div class="toggle-wrap on" id="f-toggle"><div class="toggle-knob"></div></div>
+      <span class="toggle-label" id="f-toggle-lbl" style="color:#38bdf8;font-weight:500">Aktiv</span>
+    </div>
+    <div class="field-label">Setzdatum / Uhrzeit</div>
+    <input type="datetime-local" class="field-input" id="f-setzdatum" />
+    <label class="checkbox-row" id="f-fix-row">
+      <input type="checkbox" id="f-fix" />
+      <span>Setzdatum manuell festlegen</span>
+    </label>
+    <div class="wear-preview" id="f-wear-preview" style="display:none">
+      ⊕ Tragedauer bis: <span id="f-wear-end">—</span>
+    </div>
+    <div class="btn-row">
+      <button class="btn-cancel" id="form-cancel">Abbrechen</button>
+      <button class="btn-save" id="form-save" disabled>Sensor anlegen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Modal -->
+<div class="modal-overlay" id="modal-delete">
+  <div class="modal-box danger" style="max-width:340px;text-align:center">
+    <div style="font-size:2rem;margin-bottom:12px">⚠</div>
+    <div class="modal-title" style="text-align:center">Sensor löschen?</div>
+    <div style="font-size:0.78rem;color:#94a3b8;margin-bottom:20px">Seriennummer: <span style="color:#e8f4ff" id="del-sn-label"></span></div>
+    <div class="btn-row">
+      <button class="btn-cancel" id="del-cancel">Abbrechen</button>
+      <button class="btn-delete-confirm" id="del-confirm">Löschen</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── Supabase Init ────────────────────────────────────────────────────────────
+const SUPABASE_URL = 'https://stsauolzfmlnhcvqirtc.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_U-0ntv_8apbs_RXQknkJ-g_GgzFDC8D';
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let sensors = [];
+let currentTab = 'aktiv';
+let editId = null;
+let deleteTargetId = null;
+let formAktiv = true;
+let formFix = false;
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function pad(n) { return String(n).padStart(2, '0'); }
+function nowLocalISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function fmtDate(s) {
+  if (!s) return '—';
+  return new Date(s).toLocaleDateString('de-DE', {day:'2-digit',month:'2-digit',year:'numeric'});
+}
+function fmtDT(s) {
+  if (!s) return '—';
+  return new Date(s).toLocaleString('de-DE', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+}
+function wearEnd(sz) {
+  if (!sz) return null;
+  const d = new Date(sz); d.setDate(d.getDate()+15); return d;
+}
+function wearProgress(sz) {
+  if (!sz) return null;
+  const now = new Date(), start = new Date(sz), end = wearEnd(sz);
+  const pct = Math.min(100,Math.max(0,(now-start)/(end-start)*100));
+  return { pct, daysLeft:Math.max(0,Math.ceil((end-now)/86400000)), daysWorn:Math.min(15,Math.max(0,Math.floor((now-start)/86400000))), end, expired:now>end };
+}
+
+// ─── Sync Status ──────────────────────────────────────────────────────────────
+function setSyncStatus(state, text) {
+  const dot = document.getElementById('sync-dot');
+  const txt = document.getElementById('sync-text');
+  dot.className = state === 'ok' ? '' : state === 'loading' ? 'loading' : 'error';
+  dot.style.background = state === 'ok' ? '#22c55e' : state === 'loading' ? '#f97316' : '#ef4444';
+  txt.textContent = text;
+}
+
+// ─── DB Operations ────────────────────────────────────────────────────────────
+async function loadSensors() {
+  setSyncStatus('loading', 'Laden...');
+  const { data, error } = await db.from('sensoren').select('*').order('saved_at', {ascending:false});
+  if (error) { setSyncStatus('error', 'Fehler'); console.error(error); return; }
+  sensors = (data||[]).map(r => ({
+    id: r.id,
+    seriennummer: r.seriennummer,
+    haltbarkeit: r.haltbarkeit||'',
+    setzdatum: r.setzdatum||'',
+    setzdatumFix: r.setzdatum_fix,
+    aktiv: r.aktiv,
+    savedAt: r.saved_at,
+  }));
+  setSyncStatus('ok', 'Synchronisiert');
+  render();
+}
+
+async function saveSensor(sensor) {
+  setSyncStatus('loading', 'Speichern...');
+  const row = {
+    id: sensor.id,
+    seriennummer: sensor.seriennummer,
+    haltbarkeit: sensor.haltbarkeit||null,
+    setzdatum: sensor.setzdatum||null,
+    setzdatum_fix: sensor.setzdatumFix,
+    aktiv: sensor.aktiv,
+    saved_at: new Date().toISOString(),
+  };
+  const { error } = await db.from('sensoren').upsert(row);
+  if (error) { setSyncStatus('error', 'Speicherfehler'); console.error(error); return; }
+  setSyncStatus('ok', 'Gespeichert');
+  await loadSensors();
+}
+
+async function deleteSensor(id) {
+  setSyncStatus('loading', 'Löschen...');
+  const { error } = await db.from('sensoren').delete().eq('id', id);
+  if (error) { setSyncStatus('error', 'Fehler'); console.error(error); return; }
+  setSyncStatus('ok', 'Gelöscht');
+  await loadSensors();
+}
+
+// ─── Haltbarkeits-Statistik ───────────────────────────────────────────────────
+function buildHaltbStatistik() {
+  const now = new Date(); now.setHours(0,0,0,0);
+  const withDate = sensors.filter(s => s.haltbarkeit);
+  const noDate   = sensors.filter(s => !s.haltbarkeit);
+  const groups = {};
+  withDate.forEach(s => { if(!groups[s.haltbarkeit]) groups[s.haltbarkeit]=[]; groups[s.haltbarkeit].push(s); });
+  const sorted = Object.keys(groups).sort();
+  const maxCount = sorted.reduce((m,d)=>Math.max(m,groups[d].length),0);
+
+  function urgColor(ds) {
+    const d=new Date(ds); d.setHours(0,0,0,0); const diff=Math.ceil((d-now)/86400000);
+    return diff<0?'#ef4444':diff<=30?'#f97316':diff<=90?'#38bdf8':'#22d3ee';
+  }
+  function urgLabel(ds) {
+    const d=new Date(ds); d.setHours(0,0,0,0); const diff=Math.ceil((d-now)/86400000);
+    if(diff<0) return 'abgelaufen'; if(diff===0) return 'heute'; if(diff===1) return 'morgen';
+    if(diff<=30) return `in ${diff} Tagen`; if(diff<=90) return `in ${Math.round(diff/7)} Wo.`;
+    return `in ${Math.round(diff/30)} Mon.`;
+  }
+  function barColor(ds) {
+    const d=new Date(ds); d.setHours(0,0,0,0); const diff=Math.ceil((d-now)/86400000);
+    return diff<0?'linear-gradient(90deg,#dc2626,#ef4444)':diff<=30?'linear-gradient(90deg,#ea580c,#f97316)':diff<=90?'linear-gradient(90deg,#0e6eb8,#38bdf8)':'linear-gradient(90deg,#0891b2,#22d3ee)';
+  }
+
+  let html = '';
+  sorted.forEach(ds => {
+    const count = groups[ds].length;
+    const pct = maxCount>0?Math.round((count/maxCount)*100):0;
+    const col = urgColor(ds);
+    html += `<div class="haltb-row">
+      <div class="haltb-dot" style="background:${col}"></div>
+      <div class="haltb-date">${fmtDate(ds)}</div>
+      <div class="haltb-bar-wrap"><div class="haltb-bar-fill" style="width:${pct}%;background:${barColor(ds)}"></div></div>
+      <div class="haltb-count" style="color:${col}">${count}</div>
+      <div class="haltb-label">${urgLabel(ds)}</div>
+    </div>`;
+  });
+  if (noDate.length>0) {
+    const pct = maxCount>0?Math.round((noDate.length/maxCount)*100):100;
+    html += `<div class="haltb-row">
+      <div class="haltb-dot" style="background:#475569"></div>
+      <div class="haltb-date" style="color:#475569">Kein Datum</div>
+      <div class="haltb-bar-wrap"><div class="haltb-bar-fill" style="width:${pct}%;background:linear-gradient(90deg,#334155,#475569)"></div></div>
+      <div class="haltb-count" style="color:#64748b">${noDate.length}</div>
+      <div class="haltb-label">—</div>
+    </div>`;
+  }
+  return html;
+}
+
+// ─── Statistik Tab ────────────────────────────────────────────────────────────
+function renderStatistikTab() {
+  const list = document.getElementById('sensor-list');
+  const now = new Date(); now.setHours(0,0,0,0);
+  const withDate = sensors.filter(s=>s.haltbarkeit);
+  const expired = withDate.filter(s=>{const d=new Date(s.haltbarkeit);d.setHours(0,0,0,0);return d<now;}).length;
+  const soon = withDate.filter(s=>{const d=new Date(s.haltbarkeit);d.setHours(0,0,0,0);const diff=Math.ceil((d-now)/86400000);return diff>=0&&diff<=30;}).length;
+  const noDate = sensors.filter(s=>!s.haltbarkeit).length;
+  const aktiv = sensors.filter(s=>s.aktiv).length;
+  const passiv = sensors.filter(s=>!s.aktiv).length;
+
+  const byMonth={};
+  withDate.forEach(s=>{const d=new Date(s.haltbarkeit);const k=`${d.getFullYear()}-${pad(d.getMonth()+1)}`;byMonth[k]=(byMonth[k]||0)+1;});
+  const sortedM=Object.keys(byMonth).sort();
+  const maxM=sortedM.reduce((m,k)=>Math.max(m,byMonth[k]),0);
+
+  function mLabel(k){const[y,m]=k.split('-');return new Date(parseInt(y),parseInt(m)-1,1).toLocaleDateString('de-DE',{month:'short',year:'numeric'});}
+  function mColor(k){const[y,m]=k.split('-');const d=new Date(parseInt(y),parseInt(m)-1,1);const diff=Math.ceil((d-now)/86400000);return diff<0?'#ef4444':diff<=60?'#f97316':diff<=180?'#38bdf8':'#22d3ee';}
+
+  const kacheln = [
+    ['GESAMT',sensors.length,'#e8f4ff'],['AKTIV',aktiv,'#38bdf8'],['ARCHIV',passiv,'#64748b'],
+    ['ABGELAUFEN',expired,'#f87171'],['LÄUFT BALD AB',soon,'#fb923c'],['KEIN DATUM',noDate,'#475569']
+  ].map(([l,v,c])=>`<div class="stat-kachel"><div class="stat-kachel-label">${l}</div><div class="stat-kachel-value" style="color:${c}">${v}</div></div>`).join('');
+
+  const monthRows = sortedM.map(k=>{
+    const pct=Math.round((byMonth[k]/maxM)*100);const col=mColor(k);
+    return `<div class="haltb-row">
+      <div class="haltb-date" style="min-width:96px;font-size:0.71rem">${mLabel(k)}</div>
+      <div class="haltb-bar-wrap"><div class="haltb-bar-fill" style="width:${pct}%;background:${col}"></div></div>
+      <div class="haltb-count" style="color:${col}">${byMonth[k]}</div>
+      <div class="haltb-label">${byMonth[k]===1?'Sensor':'Sensoren'}</div>
+    </div>`;
+  }).join('');
+
+  list.innerHTML = `<div style="animation:fadeIn 0.25s ease">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:20px">${kacheln}</div>
+    <div style="background:rgba(13,27,46,0.85);border:1px solid rgba(56,189,248,0.15);border-radius:10px;padding:16px 18px;margin-bottom:14px">
+      <div style="font-size:0.62rem;color:#475569;letter-spacing:0.12em;margin-bottom:14px">HALTBARKEIT NACH DATUM — ALLE SENSOREN</div>
+      ${buildHaltbStatistik()||'<div style="color:#334155;font-size:0.8rem;padding:10px 0">Keine Haltbarkeitsdaten erfasst</div>'}
+    </div>
+    ${sortedM.length>0?`<div style="background:rgba(13,27,46,0.85);border:1px solid rgba(56,189,248,0.15);border-radius:10px;padding:16px 18px">
+      <div style="font-size:0.62rem;color:#475569;letter-spacing:0.12em;margin-bottom:14px">MONATLICHE ÜBERSICHT</div>
+      ${monthRows}
+    </div>`:''}
+  </div>`;
+}
+
+// ─── Render ───────────────────────────────────────────────────────────────────
+function render() {
+  const aktiv = sensors.filter(s=>s.aktiv);
+  const passiv = sensors.filter(s=>!s.aktiv);
+
+  document.getElementById('stat-total').textContent = sensors.length;
+  document.getElementById('stat-aktiv').textContent = aktiv.length;
+  document.getElementById('stat-passiv').textContent = passiv.length;
+  document.getElementById('tab-aktiv').textContent = `Aktiv (${aktiv.length})`;
+  document.getElementById('tab-passiv').textContent = `Archiv (${passiv.length})`;
+
+  const haltbEl = document.getElementById('haltb-stats');
+  if (currentTab !== 'statistik' && sensors.length > 0) {
+    haltbEl.style.display = '';
+    document.getElementById('haltb-stats-body').innerHTML = buildHaltbStatistik();
+  } else { haltbEl.style.display = 'none'; }
+
+  if (currentTab === 'statistik') { renderStatistikTab(); return; }
+
+  const list = document.getElementById('sensor-list');
+  const displayed = currentTab === 'aktiv' ? aktiv : passiv;
+
+  if (displayed.length === 0) {
+    list.innerHTML = `<div class="empty-state"><div class="empty-icon">◎</div>${currentTab==='aktiv'?'Keine aktiven Sensoren':'Keine archivierten Sensoren'}</div>`;
+    return;
+  }
+
+  list.innerHTML = displayed.map(s => {
+    const p = wearProgress(s.setzdatum);
+    const expired = p?.expired;
+    const cardClass = s.aktiv?(expired?'sensor-card expired':'sensor-card'):'sensor-card passiv';
+    const badgeClass = s.aktiv?(expired?'status-badge badge-expired':'status-badge badge-aktiv'):'status-badge badge-archiv';
+    const badgeText = s.aktiv?(expired?'ABGELAUFEN':'AKTIV'):'ARCHIV';
+    const progressHTML = s.aktiv&&p?`
+      <div class="progress-header">
+        <span class="progress-day">Tag ${p.daysWorn} / 15</span>
+        <span class="progress-remain ${expired?'expired':''}">${expired?'Sensor abgelaufen':`noch ${p.daysLeft} Tag${p.daysLeft!==1?'e':''}`}</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill" style="width:${p.pct}%;background:${expired?'linear-gradient(90deg,#dc2626,#f87171)':p.pct>80?'linear-gradient(90deg,#0e6eb8,#fb923c)':'linear-gradient(90deg,#0e6eb8,#38bdf8)'}"></div></div>`:'';
+    return `<div class="${cardClass}">
+      <div class="card-top">
+        <div>
+          <div style="display:flex;align-items:center">
+            <span class="card-sn">${s.seriennummer}</span>
+            <span class="${badgeClass}">${badgeText}</span>
+          </div>
+          <div class="card-sub">Haltbarkeit: ${fmtDate(s.haltbarkeit)}</div>
+        </div>
+        <div class="card-actions">
+          <button class="btn-edit" onclick="openEdit('${s.id}')">Bearb.</button>
+          <button class="btn-del" onclick="openDelete('${s.id}')">✕</button>
+        </div>
+      </div>
+      <div class="info-grid">
+        <div><div class="info-label">GESETZT AM</div><div class="info-value">${fmtDT(s.setzdatum)}</div></div>
+        <div><div class="info-label">TRAGEDAUER BIS</div><div class="info-value ${expired?'expired':''}">${p?fmtDT(p.end):'—'}</div></div>
+      </div>
+      ${progressHTML}
+    </div>`;
+  }).join('');
+}
+
+// ─── Form ─────────────────────────────────────────────────────────────────────
+function openNew() {
+  editId=null; formAktiv=true; formFix=false;
+  document.getElementById('form-title').textContent='Neuen Sensor erfassen';
+  document.getElementById('form-save').textContent='Sensor anlegen';
+  document.getElementById('f-sn').value='';
+  document.getElementById('f-haltb').value='';
+  document.getElementById('f-setzdatum').value=nowLocalISO();
+  document.getElementById('f-setzdatum').disabled=true;
+  document.getElementById('f-fix').checked=false;
+  document.getElementById('f-fix-row').style.display='';
+  updateToggleUI(); updateSaveBtn(); updateWearPreview();
+  document.getElementById('modal-form').classList.add('show');
+}
+function openEdit(id) {
+  const s=sensors.find(x=>x.id===id); if(!s) return;
+  editId=id; formAktiv=s.aktiv; formFix=s.setzdatumFix;
+  document.getElementById('form-title').textContent='Sensor bearbeiten';
+  document.getElementById('form-save').textContent='Speichern';
+  document.getElementById('f-sn').value=s.seriennummer;
+  document.getElementById('f-haltb').value=s.haltbarkeit||'';
+  document.getElementById('f-setzdatum').value=s.setzdatum||nowLocalISO();
+  document.getElementById('f-fix').checked=formFix;
+  document.getElementById('f-fix-row').style.display=formAktiv?'':'none';
+  document.getElementById('f-setzdatum').disabled=formAktiv&&!formFix;
+  updateToggleUI(); updateSaveBtn(); updateWearPreview();
+  document.getElementById('modal-form').classList.add('show');
+}
+function closeForm() { document.getElementById('modal-form').classList.remove('show'); }
+function updateToggleUI() {
+  const tog=document.getElementById('f-toggle'),lbl=document.getElementById('f-toggle-lbl');
+  if(formAktiv){tog.classList.add('on');lbl.textContent='Aktiv';lbl.style.color='#38bdf8';}
+  else{tog.classList.remove('on');lbl.textContent='Passiv';lbl.style.color='#64748b';}
+}
+function updateSaveBtn() { document.getElementById('form-save').disabled=!document.getElementById('f-sn').value.trim(); }
+function updateWearPreview() {
+  const val=document.getElementById('f-setzdatum').value;
+  const el=document.getElementById('f-wear-preview');
+  if(val){el.style.display='';document.getElementById('f-wear-end').textContent=fmtDT(wearEnd(val));}
+  else el.style.display='none';
+}
+
+document.getElementById('f-toggle').addEventListener('click',()=>{
+  formAktiv=!formAktiv; formFix=false;
+  document.getElementById('f-fix').checked=false;
+  document.getElementById('f-fix-row').style.display=formAktiv?'':'none';
+  if(formAktiv){document.getElementById('f-setzdatum').value=nowLocalISO();document.getElementById('f-setzdatum').disabled=true;}
+  else document.getElementById('f-setzdatum').disabled=false;
+  updateToggleUI(); updateWearPreview();
+});
+document.getElementById('f-fix').addEventListener('change',()=>{
+  formFix=document.getElementById('f-fix').checked;
+  const sz=document.getElementById('f-setzdatum');
+  if(formAktiv&&!formFix){sz.value=nowLocalISO();sz.disabled=true;}
+  else sz.disabled=false;
+  updateWearPreview();
+});
+document.getElementById('f-sn').addEventListener('input',updateSaveBtn);
+document.getElementById('f-setzdatum').addEventListener('input',updateWearPreview);
+document.getElementById('form-cancel').addEventListener('click',closeForm);
+document.getElementById('form-save').addEventListener('click',async()=>{
+  const sn=document.getElementById('f-sn').value.trim(); if(!sn) return;
+  const sensor={
+    id:editId||crypto.randomUUID(),
+    seriennummer:sn,
+    haltbarkeit:document.getElementById('f-haltb').value,
+    setzdatum:document.getElementById('f-setzdatum').value,
+    setzdatumFix:formFix,
+    aktiv:formAktiv,
+  };
+  closeForm();
+  await saveSensor(sensor);
+});
+
+// ─── Delete ───────────────────────────────────────────────────────────────────
+function openDelete(id) {
+  const s=sensors.find(x=>x.id===id); if(!s) return;
+  deleteTargetId=id;
+  document.getElementById('del-sn-label').textContent=s.seriennummer;
+  document.getElementById('modal-delete').classList.add('show');
+}
+document.getElementById('del-cancel').addEventListener('click',()=>{document.getElementById('modal-delete').classList.remove('show');deleteTargetId=null;});
+document.getElementById('del-confirm').addEventListener('click',async()=>{
+  document.getElementById('modal-delete').classList.remove('show');
+  await deleteSensor(deleteTargetId);
+  deleteTargetId=null;
+});
+
+// ─── Tabs ─────────────────────────────────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    currentTab=btn.dataset.tab;
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    render();
+  });
+});
+
+// ─── Backdrop close ───────────────────────────────────────────────────────────
+document.getElementById('modal-form').addEventListener('click',e=>{if(e.target===document.getElementById('modal-form'))closeForm();});
+document.getElementById('modal-delete').addEventListener('click',e=>{if(e.target===document.getElementById('modal-delete')){document.getElementById('modal-delete').classList.remove('show');deleteTargetId=null;}});
+
+// ─── Realtime sync ────────────────────────────────────────────────────────────
+db.channel('sensoren-changes')
+  .on('postgres_changes',{event:'*',schema:'public',table:'sensoren'},()=>{ loadSensors(); })
+  .subscribe();
+
+// ─── Expose & Init ───────────────────────────────────────────────────────────
+window.openEdit=openEdit;
+window.openDelete=openDelete;
+document.getElementById('btn-new').addEventListener('click',openNew);
+loadSensors();
+</script>
+</body>
 </html>
