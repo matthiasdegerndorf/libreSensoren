@@ -10,6 +10,7 @@
   ║  v1.1.0    2025-05-01    Haltbarkeits-Statistik             ║
   ║  v1.2.0    2025-05-01    Statistik-Tab, Monatsübersicht     ║
   ║  v1.3.0    2025-05-24    Supabase Cloud-Sync (Echtzeit)     ║
+  ║  v1.4.0    2025-05-24    Reklamation: Feld, Tab, Statistik   ║
   ║  v1.3.2    2025-05-24    Supabase anon Key korrigiert        ║
   ║  v1.3.1    2025-05-24    Versionierung & Ersteller-Info     ║
   ╚══════════════════════════════════════════════════════════════╝
@@ -20,7 +21,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
   <meta name="theme-color" content="#0a0f1e" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <title>Libre 3 Sensor Manager v1.3.2</title>
+  <title>Libre 3 Sensor Manager v1.4.0</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
@@ -138,6 +139,7 @@
     .badge-aktiv { background: rgba(56,189,248,0.12); color: #38bdf8; border-color: rgba(56,189,248,0.3); }
     .badge-expired { background: rgba(239,68,68,0.15); color: #f87171; border-color: rgba(239,68,68,0.4); }
     .badge-archiv { background: rgba(71,85,105,0.2); color: #64748b; border-color: #334155; }
+    .badge-reklamiert { background: rgba(234,179,8,0.15); color: #fbbf24; border-color: rgba(234,179,8,0.4); }
     .card-sub { font-size: 0.7rem; color: #475569; margin-top: 2px; }
     .card-actions { display: flex; gap: 8px; flex-shrink: 0; }
     .btn-edit { background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.2); border-radius: 6px; color: #38bdf8; padding: 6px 11px; cursor: pointer; font-size: 0.7rem; }
@@ -207,7 +209,7 @@
     <div class="logo-meta">© Matthias Kuchler</div>
   </div>
   <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end">
-    <button id="version-badge" onclick="document.getElementById('modal-changelog').classList.add('show')">v1.3.2</button>
+    <button id="version-badge" onclick="document.getElementById('modal-changelog').classList.add('show')">v1.4.0</button>
     <div id="sync-indicator">
       <div id="sync-dot" class="loading"></div>
       <span id="sync-text">Verbinde...</span>
@@ -220,6 +222,7 @@
   <div class="stat-box"><div class="stat-label">GESAMT</div><div class="stat-value" id="stat-total" style="color:#e8f4ff">0</div></div>
   <div class="stat-box"><div class="stat-label">AKTIV</div><div class="stat-value" id="stat-aktiv" style="color:#38bdf8">0</div></div>
   <div class="stat-box"><div class="stat-label">ARCHIV</div><div class="stat-value" id="stat-passiv" style="color:#64748b">0</div></div>
+  <div class="stat-box"><div class="stat-label">REKLAMIERT</div><div class="stat-value" id="stat-reklamiert" style="color:#fbbf24">0</div></div>
 </div>
 
 <div id="haltb-stats">
@@ -230,6 +233,7 @@
 <div id="tabs">
   <button class="tab-btn active" data-tab="aktiv" id="tab-aktiv">Aktiv (0)</button>
   <button class="tab-btn" data-tab="passiv" id="tab-passiv">Archiv (0)</button>
+  <button class="tab-btn" data-tab="reklamiert" id="tab-reklamiert">Reklamiert (0)</button>
   <button class="tab-btn" data-tab="statistik" id="tab-statistik">Statistik</button>
 </div>
 
@@ -256,6 +260,19 @@
     </label>
     <div class="wear-preview" id="f-wear-preview" style="display:none">
       ⊕ Tragedauer bis: <span id="f-wear-end">—</span>
+    </div>
+    <!-- Reklamation (nur sichtbar wenn Sensor vorher aktiv war) -->
+    <div id="f-rekl-section" style="display:none">
+      <div style="height:1px;background:rgba(56,189,248,0.1);margin:16px 0"></div>
+      <div style="font-size:0.62rem;color:#fbbf24;letter-spacing:0.1em;margin-bottom:10px">REKLAMATION</div>
+      <label class="checkbox-row">
+        <input type="checkbox" id="f-reklamiert" />
+        <span>Sensor wurde reklamiert</span>
+      </label>
+      <div id="f-rekldatum-row" style="display:none">
+        <div class="field-label">Reklamationsdatum</div>
+        <input type="date" class="field-input" id="f-rekldatum" />
+      </div>
     </div>
     <div class="btn-row">
       <button class="btn-cancel" id="form-cancel">Abbrechen</button>
@@ -289,7 +306,12 @@
     </div>
 
     <div class="cl-row">
-      <div class="cl-tag latest">v1.3.2</div>
+      <div class="cl-tag latest">v1.4.0</div>
+      <div class="cl-date">24.05.2025</div>
+      <div class="cl-desc">Reklamation: Feld, Tab & Statistik mit Monatsauswertung</div>
+    </div>
+    <div class="cl-row">
+      <div class="cl-tag">v1.3.2</div>
       <div class="cl-date">24.05.2025</div>
       <div class="cl-desc">Supabase anon Key korrigiert — Verbindung stabil</div>
     </div>
@@ -339,6 +361,7 @@ let editId = null;
 let deleteTargetId = null;
 let formAktiv = true;
 let formFix = false;
+let formHadAktiv = false; // tracks if sensor was ever active (allows reklamation)
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -386,6 +409,9 @@ async function loadSensors() {
     setzdatum: r.setzdatum||'',
     setzdatumFix: r.setzdatum_fix,
     aktiv: r.aktiv,
+    reklamiert: r.reklamiert||false,
+    reklamationsdatum: r.reklamationsdatum||'',
+    hadAktiv: r.had_aktiv||false,
     savedAt: r.saved_at,
   }));
   setSyncStatus('ok', 'Synchronisiert');
@@ -401,6 +427,9 @@ async function saveSensor(sensor) {
     setzdatum: sensor.setzdatum||null,
     setzdatum_fix: sensor.setzdatumFix,
     aktiv: sensor.aktiv,
+    reklamiert: sensor.reklamiert||false,
+    reklamationsdatum: sensor.reklamationsdatum||null,
+    had_aktiv: sensor.hadAktiv||sensor.aktiv||false,
     saved_at: new Date().toISOString(),
   };
   const { error } = await db.from('sensoren').upsert(row);
@@ -468,6 +497,79 @@ function buildHaltbStatistik() {
   return html;
 }
 
+// ─── Reklamiert Tab ───────────────────────────────────────────────────────────
+function renderReklamiertTab() {
+  const list = document.getElementById('sensor-list');
+  const rekl = sensors.filter(s=>s.reklamiert);
+
+  if (rekl.length === 0) {
+    list.innerHTML = `<div class="empty-state"><div class="empty-icon">⚑</div>Keine reklamierten Sensoren</div>`;
+    return;
+  }
+
+  // Group by month/year of reklamationsdatum
+  const byMonth = {};
+  rekl.forEach(s => {
+    const key = s.reklamationsdatum
+      ? `${new Date(s.reklamationsdatum).getFullYear()}-${pad(new Date(s.reklamationsdatum).getMonth()+1)}`
+      : 'kein-datum';
+    if (!byMonth[key]) byMonth[key] = [];
+    byMonth[key].push(s);
+  });
+  const sortedM = Object.keys(byMonth).filter(k=>k!=='kein-datum').sort();
+  const maxM = Object.values(byMonth).reduce((m,v)=>Math.max(m,v.length),0);
+
+  function mLabel(k) {
+    if (k==='kein-datum') return 'Kein Datum';
+    const [y,m] = k.split('-');
+    return new Date(parseInt(y),parseInt(m)-1,1).toLocaleDateString('de-DE',{month:'long',year:'numeric'});
+  }
+
+  const monthRows = [...sortedM, ...(byMonth['kein-datum']?['kein-datum']:[])].map(k => {
+    const count = byMonth[k].length;
+    const pct = maxM>0?Math.round((count/maxM)*100):100;
+    const isNoDate = k==='kein-datum';
+    const col = isNoDate ? '#475569' : '#fbbf24';
+    const bg = isNoDate ? 'linear-gradient(90deg,#334155,#475569)' : 'linear-gradient(90deg,#b45309,#fbbf24)';
+    return `<div class="haltb-row">
+      <div class="haltb-dot" style="background:${col}"></div>
+      <div class="haltb-date" style="min-width:110px;font-size:0.71rem;color:${isNoDate?'#475569':'#94a3b8'}">${mLabel(k)}</div>
+      <div class="haltb-bar-wrap"><div class="haltb-bar-fill" style="width:${pct}%;background:${bg}"></div></div>
+      <div class="haltb-count" style="color:${col}">${count}</div>
+      <div class="haltb-label">${count===1?'Sensor':'Sensoren'}</div>
+    </div>`;
+  }).join('');
+
+  // Sensor list per month
+  const sensorCards = [...sortedM, ...(byMonth['kein-datum']?['kein-datum']:[])].map(k => {
+    const list = byMonth[k];
+    return `<div style="margin-bottom:14px">
+      <div style="font-size:0.65rem;color:#fbbf24;letter-spacing:0.1em;margin-bottom:8px;display:flex;align-items:center;gap:8px">
+        ⚑ ${mLabel(k).toUpperCase()}
+        <div style="flex:1;height:1px;background:rgba(234,179,8,0.15)"></div>
+      </div>
+      ${list.map(s=>`<div style="background:rgba(13,27,46,0.7);border:1px solid rgba(234,179,8,0.2);border-radius:8px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:0.9rem;color:#e8f4ff">${s.seriennummer}</div>
+          <div style="font-size:0.68rem;color:#64748b;margin-top:2px">Rekl. am: ${fmtDate(s.reklamationsdatum)} · Gesetzt: ${fmtDate(s.setzdatum)}</div>
+        </div>
+        <button class="btn-edit" onclick="openEdit('${s.id}')">Bearb.</button>
+      </div>`).join('')}
+    </div>`;
+  }).join('');
+
+  list.innerHTML = `<div style="animation:fadeIn 0.25s ease">
+    <div style="background:rgba(13,27,46,0.85);border:1px solid rgba(234,179,8,0.2);border-radius:10px;padding:16px 18px;margin-bottom:14px">
+      <div style="font-size:0.62rem;color:#fbbf24;letter-spacing:0.12em;margin-bottom:14px">REKLAMATIONEN NACH MONAT</div>
+      ${monthRows}
+    </div>
+    <div style="background:rgba(13,27,46,0.85);border:1px solid rgba(234,179,8,0.15);border-radius:10px;padding:16px 18px">
+      <div style="font-size:0.62rem;color:#fbbf24;letter-spacing:0.12em;margin-bottom:14px">REKLAMIERTE SENSOREN</div>
+      ${sensorCards}
+    </div>
+  </div>`;
+}
+
 // ─── Statistik Tab ────────────────────────────────────────────────────────────
 function renderStatistikTab() {
   const list = document.getElementById('sensor-list');
@@ -487,9 +589,11 @@ function renderStatistikTab() {
   function mLabel(k){const[y,m]=k.split('-');return new Date(parseInt(y),parseInt(m)-1,1).toLocaleDateString('de-DE',{month:'short',year:'numeric'});}
   function mColor(k){const[y,m]=k.split('-');const d=new Date(parseInt(y),parseInt(m)-1,1);const diff=Math.ceil((d-now)/86400000);return diff<0?'#ef4444':diff<=60?'#f97316':diff<=180?'#38bdf8':'#22d3ee';}
 
+  const reklamiertCount = sensors.filter(s=>s.reklamiert).length;
+
   const kacheln = [
     ['GESAMT',sensors.length,'#e8f4ff'],['AKTIV',aktiv,'#38bdf8'],['ARCHIV',passiv,'#64748b'],
-    ['ABGELAUFEN',expired,'#f87171'],['LÄUFT BALD AB',soon,'#fb923c'],['KEIN DATUM',noDate,'#475569']
+    ['ABGELAUFEN',expired,'#f87171'],['LÄUFT BALD AB',soon,'#fb923c'],['REKLAMIERT',reklamiertCount,'#fbbf24']
   ].map(([l,v,c])=>`<div class="stat-kachel"><div class="stat-kachel-label">${l}</div><div class="stat-kachel-value" style="color:${c}">${v}</div></div>`).join('');
 
   const monthRows = sortedM.map(k=>{
@@ -517,22 +621,26 @@ function renderStatistikTab() {
 
 // ─── Render ───────────────────────────────────────────────────────────────────
 function render() {
-  const aktiv = sensors.filter(s=>s.aktiv);
-  const passiv = sensors.filter(s=>!s.aktiv);
+  const aktiv      = sensors.filter(s=>s.aktiv);
+  const passiv     = sensors.filter(s=>!s.aktiv);
+  const reklamiert = sensors.filter(s=>s.reklamiert);
 
   document.getElementById('stat-total').textContent = sensors.length;
   document.getElementById('stat-aktiv').textContent = aktiv.length;
   document.getElementById('stat-passiv').textContent = passiv.length;
+  document.getElementById('stat-reklamiert').textContent = reklamiert.length;
   document.getElementById('tab-aktiv').textContent = `Aktiv (${aktiv.length})`;
   document.getElementById('tab-passiv').textContent = `Archiv (${passiv.length})`;
+  document.getElementById('tab-reklamiert').textContent = `Reklamiert (${reklamiert.length})`;
 
   const haltbEl = document.getElementById('haltb-stats');
-  if (currentTab !== 'statistik' && sensors.length > 0) {
+  if (currentTab !== 'statistik' && currentTab !== 'reklamiert' && sensors.length > 0) {
     haltbEl.style.display = '';
     document.getElementById('haltb-stats-body').innerHTML = buildHaltbStatistik();
   } else { haltbEl.style.display = 'none'; }
 
   if (currentTab === 'statistik') { renderStatistikTab(); return; }
+  if (currentTab === 'reklamiert') { renderReklamiertTab(); return; }
 
   const list = document.getElementById('sensor-list');
   const displayed = currentTab === 'aktiv' ? aktiv : passiv;
@@ -548,18 +656,21 @@ function render() {
     const cardClass = s.aktiv?(expired?'sensor-card expired':'sensor-card'):'sensor-card passiv';
     const badgeClass = s.aktiv?(expired?'status-badge badge-expired':'status-badge badge-aktiv'):'status-badge badge-archiv';
     const badgeText = s.aktiv?(expired?'ABGELAUFEN':'AKTIV'):'ARCHIV';
+    const reklBadge = s.reklamiert ? `<span class="status-badge badge-reklamiert">REKLAMIERT</span>` : '';
     const progressHTML = s.aktiv&&p?`
       <div class="progress-header">
         <span class="progress-day">Tag ${p.daysWorn} / 15</span>
         <span class="progress-remain ${expired?'expired':''}">${expired?'Sensor abgelaufen':`noch ${p.daysLeft} Tag${p.daysLeft!==1?'e':''}`}</span>
       </div>
       <div class="progress-track"><div class="progress-fill" style="width:${p.pct}%;background:${expired?'linear-gradient(90deg,#dc2626,#f87171)':p.pct>80?'linear-gradient(90deg,#0e6eb8,#fb923c)':'linear-gradient(90deg,#0e6eb8,#38bdf8)'}"></div></div>`:'';
+    const reklInfo = s.reklamiert ? `<div style="margin-top:8px;padding:6px 10px;background:rgba(234,179,8,0.06);border:1px solid rgba(234,179,8,0.2);border-radius:6px;font-size:0.72rem;color:#fbbf24">⚑ Reklamiert am: ${fmtDate(s.reklamationsdatum)}</div>` : '';
     return `<div class="${cardClass}">
       <div class="card-top">
         <div>
-          <div style="display:flex;align-items:center">
+          <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px">
             <span class="card-sn">${s.seriennummer}</span>
             <span class="${badgeClass}">${badgeText}</span>
+            ${reklBadge}
           </div>
           <div class="card-sub">Haltbarkeit: ${fmtDate(s.haltbarkeit)}</div>
         </div>
@@ -573,13 +684,14 @@ function render() {
         <div><div class="info-label">TRAGEDAUER BIS</div><div class="info-value ${expired?'expired':''}">${p?fmtDT(p.end):'—'}</div></div>
       </div>
       ${progressHTML}
+      ${reklInfo}
     </div>`;
   }).join('');
 }
 
 // ─── Form ─────────────────────────────────────────────────────────────────────
 function openNew() {
-  editId=null; formAktiv=true; formFix=false;
+  editId=null; formAktiv=true; formFix=false; formHadAktiv=false;
   document.getElementById('form-title').textContent='Neuen Sensor erfassen';
   document.getElementById('form-save').textContent='Sensor anlegen';
   document.getElementById('f-sn').value='';
@@ -588,12 +700,16 @@ function openNew() {
   document.getElementById('f-setzdatum').disabled=true;
   document.getElementById('f-fix').checked=false;
   document.getElementById('f-fix-row').style.display='';
+  document.getElementById('f-reklamiert').checked=false;
+  document.getElementById('f-rekldatum').value='';
+  document.getElementById('f-rekldatum-row').style.display='none';
+  document.getElementById('f-rekl-section').style.display='none';
   updateToggleUI(); updateSaveBtn(); updateWearPreview();
   document.getElementById('modal-form').classList.add('show');
 }
 function openEdit(id) {
   const s=sensors.find(x=>x.id===id); if(!s) return;
-  editId=id; formAktiv=s.aktiv; formFix=s.setzdatumFix;
+  editId=id; formAktiv=s.aktiv; formFix=s.setzdatumFix; formHadAktiv=s.hadAktiv||s.aktiv;
   document.getElementById('form-title').textContent='Sensor bearbeiten';
   document.getElementById('form-save').textContent='Speichern';
   document.getElementById('f-sn').value=s.seriennummer;
@@ -602,6 +718,12 @@ function openEdit(id) {
   document.getElementById('f-fix').checked=formFix;
   document.getElementById('f-fix-row').style.display=formAktiv?'':'none';
   document.getElementById('f-setzdatum').disabled=formAktiv&&!formFix;
+  // Reklamation
+  const canRekl = formHadAktiv;
+  document.getElementById('f-rekl-section').style.display=canRekl?'':'none';
+  document.getElementById('f-reklamiert').checked=s.reklamiert||false;
+  document.getElementById('f-rekldatum').value=s.reklamationsdatum||'';
+  document.getElementById('f-rekldatum-row').style.display=s.reklamiert?'':'none';
   updateToggleUI(); updateSaveBtn(); updateWearPreview();
   document.getElementById('modal-form').classList.add('show');
 }
@@ -621,10 +743,13 @@ function updateWearPreview() {
 
 document.getElementById('f-toggle').addEventListener('click',()=>{
   formAktiv=!formAktiv; formFix=false;
+  if(formAktiv) formHadAktiv=true;
   document.getElementById('f-fix').checked=false;
   document.getElementById('f-fix-row').style.display=formAktiv?'':'none';
   if(formAktiv){document.getElementById('f-setzdatum').value=nowLocalISO();document.getElementById('f-setzdatum').disabled=true;}
   else document.getElementById('f-setzdatum').disabled=false;
+  // Show reklamation section if sensor was ever active
+  document.getElementById('f-rekl-section').style.display=formHadAktiv?'':'none';
   updateToggleUI(); updateWearPreview();
 });
 document.getElementById('f-fix').addEventListener('change',()=>{
@@ -634,11 +759,20 @@ document.getElementById('f-fix').addEventListener('change',()=>{
   else sz.disabled=false;
   updateWearPreview();
 });
+document.getElementById('f-reklamiert').addEventListener('change',()=>{
+  const checked=document.getElementById('f-reklamiert').checked;
+  document.getElementById('f-rekldatum-row').style.display=checked?'':'none';
+  if(checked && !document.getElementById('f-rekldatum').value) {
+    document.getElementById('f-rekldatum').value=new Date().toISOString().split('T')[0];
+  }
+});
+
 document.getElementById('f-sn').addEventListener('input',updateSaveBtn);
 document.getElementById('f-setzdatum').addEventListener('input',updateWearPreview);
 document.getElementById('form-cancel').addEventListener('click',closeForm);
 document.getElementById('form-save').addEventListener('click',async()=>{
   const sn=document.getElementById('f-sn').value.trim(); if(!sn) return;
+  const isRekl=document.getElementById('f-reklamiert').checked;
   const sensor={
     id:editId||crypto.randomUUID(),
     seriennummer:sn,
@@ -646,6 +780,9 @@ document.getElementById('form-save').addEventListener('click',async()=>{
     setzdatum:document.getElementById('f-setzdatum').value,
     setzdatumFix:formFix,
     aktiv:formAktiv,
+    reklamiert:isRekl,
+    reklamationsdatum:isRekl?document.getElementById('f-rekldatum').value:'',
+    hadAktiv:formHadAktiv||formAktiv,
   };
   closeForm();
   await saveSensor(sensor);
