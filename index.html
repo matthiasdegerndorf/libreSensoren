@@ -10,6 +10,8 @@
   ║  v1.1.0    2025-05-01    Haltbarkeits-Statistik             ║
   ║  v1.2.0    2025-05-01    Statistik-Tab, Monatsübersicht     ║
   ║  v1.3.0    2025-05-24    Supabase Cloud-Sync (Echtzeit)     ║
+  ║  v1.5.1    2025-05-24    Seriennummer eindeutig (Duplikat-Prüfung) ║
+  ║  v1.5.0    2025-05-24    Reiter Abgelaufen mit Übersicht     ║
   ║  v1.4.0    2025-05-24    Reklamation: Feld, Tab, Statistik   ║
   ║  v1.3.2    2025-05-24    Supabase anon Key korrigiert        ║
   ║  v1.3.1    2025-05-24    Versionierung & Ersteller-Info     ║
@@ -21,7 +23,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
   <meta name="theme-color" content="#0a0f1e" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <title>Libre 3 Sensor Manager v1.4.0</title>
+  <title>Libre 3 Sensor Manager v1.5.1</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
@@ -140,6 +142,8 @@
     .badge-expired { background: rgba(239,68,68,0.15); color: #f87171; border-color: rgba(239,68,68,0.4); }
     .badge-archiv { background: rgba(71,85,105,0.2); color: #64748b; border-color: #334155; }
     .badge-reklamiert { background: rgba(234,179,8,0.15); color: #fbbf24; border-color: rgba(234,179,8,0.4); }
+    .field-error { font-size: 0.68rem; color: #f87171; margin-top: 4px; display: none; }
+    .field-input.error { border-color: #ef4444 !important; }
     .card-sub { font-size: 0.7rem; color: #475569; margin-top: 2px; }
     .card-actions { display: flex; gap: 8px; flex-shrink: 0; }
     .btn-edit { background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.2); border-radius: 6px; color: #38bdf8; padding: 6px 11px; cursor: pointer; font-size: 0.7rem; }
@@ -209,7 +213,7 @@
     <div class="logo-meta">© Matthias Kuchler</div>
   </div>
   <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end">
-    <button id="version-badge" onclick="document.getElementById('modal-changelog').classList.add('show')">v1.4.0</button>
+    <button id="version-badge" onclick="document.getElementById('modal-changelog').classList.add('show')">v1.5.1</button>
     <div id="sync-indicator">
       <div id="sync-dot" class="loading"></div>
       <span id="sync-text">Verbinde...</span>
@@ -221,6 +225,7 @@
 <div id="stats-bar">
   <div class="stat-box"><div class="stat-label">GESAMT</div><div class="stat-value" id="stat-total" style="color:#e8f4ff">0</div></div>
   <div class="stat-box"><div class="stat-label">AKTIV</div><div class="stat-value" id="stat-aktiv" style="color:#38bdf8">0</div></div>
+  <div class="stat-box"><div class="stat-label">ABGELAUFEN</div><div class="stat-value" id="stat-abgelaufen" style="color:#f87171">0</div></div>
   <div class="stat-box"><div class="stat-label">ARCHIV</div><div class="stat-value" id="stat-passiv" style="color:#64748b">0</div></div>
   <div class="stat-box"><div class="stat-label">REKLAMIERT</div><div class="stat-value" id="stat-reklamiert" style="color:#fbbf24">0</div></div>
 </div>
@@ -233,6 +238,7 @@
 <div id="tabs">
   <button class="tab-btn active" data-tab="aktiv" id="tab-aktiv">Aktiv (0)</button>
   <button class="tab-btn" data-tab="passiv" id="tab-passiv">Archiv (0)</button>
+  <button class="tab-btn" data-tab="abgelaufen" id="tab-abgelaufen" style="color:#f87171">Abgelaufen (0)</button>
   <button class="tab-btn" data-tab="reklamiert" id="tab-reklamiert">Reklamiert (0)</button>
   <button class="tab-btn" data-tab="statistik" id="tab-statistik">Statistik</button>
 </div>
@@ -245,6 +251,7 @@
     <div class="modal-title" id="form-title">Neuen Sensor erfassen</div>
     <div class="field-label">Seriennummer *</div>
     <input type="text" class="field-input" id="f-sn" placeholder="z.B. 0M700XXXXX" />
+    <div class="field-error" id="f-sn-error">⚠ Diese Seriennummer ist bereits vorhanden!</div>
     <div class="field-label">Haltbarkeitsdatum</div>
     <input type="date" class="field-input" id="f-haltb" />
     <div class="toggle-row">
@@ -306,7 +313,17 @@
     </div>
 
     <div class="cl-row">
-      <div class="cl-tag latest">v1.4.0</div>
+      <div class="cl-tag latest">v1.5.1</div>
+      <div class="cl-date">24.05.2025</div>
+      <div class="cl-desc">Seriennummer eindeutig — Duplikat-Prüfung mit Live-Fehlermeldung</div>
+    </div>
+    <div class="cl-row">
+      <div class="cl-tag">v1.5.0</div>
+      <div class="cl-date">24.05.2025</div>
+      <div class="cl-desc">Reiter Abgelaufen — alle Sensoren mit abgelaufener Tragedauer</div>
+    </div>
+    <div class="cl-row">
+      <div class="cl-tag">v1.4.0</div>
       <div class="cl-date">24.05.2025</div>
       <div class="cl-desc">Reklamation: Feld, Tab & Statistik mit Monatsauswertung</div>
     </div>
@@ -497,6 +514,65 @@ function buildHaltbStatistik() {
   return html;
 }
 
+// ─── Abgelaufen Tab ───────────────────────────────────────────────────────────
+function renderAbgelaufenTab() {
+  const list = document.getElementById('sensor-list');
+  const abgelaufen = sensors
+    .filter(s=>{ const p=wearProgress(s.setzdatum); return p&&p.expired; })
+    .sort((a,b)=>{ const pa=wearProgress(a.setzdatum), pb=wearProgress(b.setzdatum); return pb.end-pa.end; });
+
+  if (abgelaufen.length === 0) {
+    list.innerHTML = `<div class="empty-state"><div class="empty-icon">✓</div>Keine abgelaufenen Sensoren</div>`;
+    return;
+  }
+
+  const cards = abgelaufen.map(s => {
+    const p = wearProgress(s.setzdatum);
+    const daysAgo = Math.floor((new Date() - p.end) / 86400000);
+    const reklBadge = s.reklamiert ? `<span class="status-badge badge-reklamiert">REKLAMIERT</span>` : '';
+    const statusBadge = s.aktiv
+      ? `<span class="status-badge badge-expired">AKTIV·ABGEL.</span>`
+      : `<span class="status-badge badge-archiv">ARCHIV·ABGEL.</span>`;
+    return `<div class="sensor-card expired">
+      <div class="card-top">
+        <div>
+          <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px">
+            <span class="card-sn">${s.seriennummer}</span>
+            ${statusBadge}
+            ${reklBadge}
+          </div>
+          <div class="card-sub">Haltbarkeit: ${fmtDate(s.haltbarkeit)}</div>
+        </div>
+        <div class="card-actions">
+          <button class="btn-edit" onclick="openEdit('${s.id}')">Bearb.</button>
+          <button class="btn-del" onclick="openDelete('${s.id}')">✕</button>
+        </div>
+      </div>
+      <div class="info-grid">
+        <div><div class="info-label">GESETZT AM</div><div class="info-value">${fmtDT(s.setzdatum)}</div></div>
+        <div><div class="info-label">ABGELAUFEN AM</div><div class="info-value expired">${fmtDT(p.end)}</div></div>
+      </div>
+      <div style="margin-top:8px;padding:6px 10px;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.2);border-radius:6px;font-size:0.72rem;color:#f87171">
+        ⏱ Vor ${daysAgo} Tag${daysAgo!==1?'en':''} abgelaufen
+      </div>
+      ${s.reklamiert?`<div style="margin-top:6px;padding:6px 10px;background:rgba(234,179,8,0.06);border:1px solid rgba(234,179,8,0.2);border-radius:6px;font-size:0.72rem;color:#fbbf24">⚑ Reklamiert am: ${fmtDate(s.reklamationsdatum)}</div>`:''}
+    </div>`;
+  }).join('');
+
+  // Summary bar
+  const totalDays = abgelaufen.reduce((sum,s)=>{ const p=wearProgress(s.setzdatum); return sum+Math.floor((new Date()-p.end)/86400000); },0);
+  const avgDays = Math.round(totalDays/abgelaufen.length);
+
+  list.innerHTML = `<div style="animation:fadeIn 0.25s ease">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px">
+      <div class="stat-kachel"><div class="stat-kachel-label">ABGELAUFEN</div><div class="stat-kachel-value" style="color:#f87171">${abgelaufen.length}</div></div>
+      <div class="stat-kachel"><div class="stat-kachel-label">DAVON AKTIV</div><div class="stat-kachel-value" style="color:#fb923c">${abgelaufen.filter(s=>s.aktiv).length}</div></div>
+      <div class="stat-kachel"><div class="stat-kachel-label">Ø TAGE ÜBERFÄLLIG</div><div class="stat-kachel-value" style="color:#f87171">${avgDays}</div></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">${cards}</div>
+  </div>`;
+}
+
 // ─── Reklamiert Tab ───────────────────────────────────────────────────────────
 function renderReklamiertTab() {
   const list = document.getElementById('sensor-list');
@@ -624,23 +700,32 @@ function render() {
   const aktiv      = sensors.filter(s=>s.aktiv);
   const passiv     = sensors.filter(s=>!s.aktiv);
   const reklamiert = sensors.filter(s=>s.reklamiert);
+  const abgelaufen = sensors.filter(s=>{ const p=wearProgress(s.setzdatum); return p&&p.expired; });
 
   document.getElementById('stat-total').textContent = sensors.length;
   document.getElementById('stat-aktiv').textContent = aktiv.length;
   document.getElementById('stat-passiv').textContent = passiv.length;
   document.getElementById('stat-reklamiert').textContent = reklamiert.length;
+  document.getElementById('stat-abgelaufen').textContent = abgelaufen.length;
   document.getElementById('tab-aktiv').textContent = `Aktiv (${aktiv.length})`;
   document.getElementById('tab-passiv').textContent = `Archiv (${passiv.length})`;
   document.getElementById('tab-reklamiert').textContent = `Reklamiert (${reklamiert.length})`;
+  document.getElementById('tab-abgelaufen').textContent = `Abgelaufen (${abgelaufen.length})`;
+
+  // Highlight abgelaufen tab if there are expired sensors
+  const abgTab = document.getElementById('tab-abgelaufen');
+  abgTab.style.color = currentTab === 'abgelaufen' ? '#f87171' : abgelaufen.length > 0 ? '#f87171' : '#475569';
 
   const haltbEl = document.getElementById('haltb-stats');
-  if (currentTab !== 'statistik' && currentTab !== 'reklamiert' && sensors.length > 0) {
+  const hideStrip = ['statistik','reklamiert','abgelaufen'].includes(currentTab);
+  if (!hideStrip && sensors.length > 0) {
     haltbEl.style.display = '';
     document.getElementById('haltb-stats-body').innerHTML = buildHaltbStatistik();
   } else { haltbEl.style.display = 'none'; }
 
-  if (currentTab === 'statistik') { renderStatistikTab(); return; }
-  if (currentTab === 'reklamiert') { renderReklamiertTab(); return; }
+  if (currentTab === 'statistik')  { renderStatistikTab();   return; }
+  if (currentTab === 'reklamiert') { renderReklamiertTab();  return; }
+  if (currentTab === 'abgelaufen') { renderAbgelaufenTab();  return; }
 
   const list = document.getElementById('sensor-list');
   const displayed = currentTab === 'aktiv' ? aktiv : passiv;
@@ -733,7 +818,21 @@ function updateToggleUI() {
   if(formAktiv){tog.classList.add('on');lbl.textContent='Aktiv';lbl.style.color='#38bdf8';}
   else{tog.classList.remove('on');lbl.textContent='Passiv';lbl.style.color='#64748b';}
 }
-function updateSaveBtn() { document.getElementById('form-save').disabled=!document.getElementById('f-sn').value.trim(); }
+function updateSaveBtn() {
+  const sn = document.getElementById('f-sn').value.trim();
+  const snInput = document.getElementById('f-sn');
+  const snError = document.getElementById('f-sn-error');
+  // Check duplicate: any other sensor (not the one being edited) with same SN
+  const isDuplicate = sn && sensors.some(s => s.seriennummer.trim().toLowerCase() === sn.toLowerCase() && s.id !== editId);
+  if (isDuplicate) {
+    snInput.classList.add('error');
+    snError.style.display = '';
+  } else {
+    snInput.classList.remove('error');
+    snError.style.display = 'none';
+  }
+  document.getElementById('form-save').disabled = !sn || isDuplicate;
+}
 function updateWearPreview() {
   const val=document.getElementById('f-setzdatum').value;
   const el=document.getElementById('f-wear-preview');
@@ -772,6 +871,9 @@ document.getElementById('f-setzdatum').addEventListener('input',updateWearPrevie
 document.getElementById('form-cancel').addEventListener('click',closeForm);
 document.getElementById('form-save').addEventListener('click',async()=>{
   const sn=document.getElementById('f-sn').value.trim(); if(!sn) return;
+  // Double-check duplicate
+  const isDuplicate = sensors.some(s => s.seriennummer.trim().toLowerCase() === sn.toLowerCase() && s.id !== editId);
+  if (isDuplicate) { updateSaveBtn(); return; }
   const isRekl=document.getElementById('f-reklamiert').checked;
   const sensor={
     id:editId||crypto.randomUUID(),
