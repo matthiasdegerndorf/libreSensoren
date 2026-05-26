@@ -10,6 +10,7 @@
   ║  v1.1.0    2025-05-01    Haltbarkeits-Statistik             ║
   ║  v1.2.0    2025-05-01    Statistik-Tab, Monatsübersicht     ║
   ║  v1.3.0    2025-05-24    Supabase Cloud-Sync (Echtzeit)     ║
+  ║  v1.6.0    2025-05-24    Reichweiten-Prognose (Vorrat x 15 Tage)      ║
   ║  v1.5.1    2025-05-24    Seriennummer eindeutig (Duplikat-Prüfung) ║
   ║  v1.5.0    2025-05-24    Reiter Abgelaufen mit Übersicht     ║
   ║  v1.4.0    2025-05-24    Reklamation: Feld, Tab, Statistik   ║
@@ -23,7 +24,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
   <meta name="theme-color" content="#0a0f1e" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <title>Libre 3 Sensor Manager v1.5.1</title>
+  <title>Libre 3 Sensor Manager v1.6.0</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
@@ -202,6 +203,69 @@
 
     @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Search */
+    #search-bar {
+      padding: 10px 20px;
+      background: rgba(10,20,40,0.5);
+      border-bottom: 1px solid rgba(56,189,248,0.08);
+    }
+    #search-wrap {
+      max-width: 700px; margin: 0 auto;
+      display: flex; align-items: center; gap: 10px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid #1e3a5f;
+      border-radius: 8px; padding: 8px 14px;
+      transition: border-color 0.15s;
+    }
+    #search-wrap:focus-within { border-color: #38bdf8; box-shadow: 0 0 0 2px rgba(56,189,248,0.12); }
+    #search-icon { color: #475569; font-size: 0.9rem; flex-shrink: 0; }
+    #search-input {
+      flex: 1; background: transparent; border: none;
+      color: #e8f4ff; font-family: 'DM Mono', monospace;
+      font-size: 0.82rem; outline: none;
+    }
+    #search-input::placeholder { color: #334155; }
+    #search-clear {
+      background: transparent; border: none; color: #475569;
+      cursor: pointer; font-size: 0.9rem; padding: 0; line-height: 1;
+      display: none;
+    }
+    #search-clear:hover { color: #94a3b8; }
+    #search-count {
+      font-size: 0.65rem; color: #475569; letter-spacing: 0.08em;
+      white-space: nowrap; display: none;
+    }
+    .search-highlight {
+      background: rgba(56,189,248,0.2);
+      color: #38bdf8;
+      border-radius: 2px;
+      padding: 0 1px;
+    }
+
+    /* Reichweiten-Prognose */
+    #reichweite-bar {
+      background: rgba(10,20,40,0.7);
+      border-bottom: 1px solid rgba(56,189,248,0.1);
+      padding: 12px 20px;
+      display: none;
+    }
+    #reichweite-inner {
+      max-width: 700px; margin: 0 auto;
+      display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    }
+    .rw-label { font-size: 0.6rem; color: #475569; letter-spacing: 0.1em; white-space: nowrap; }
+    .rw-divider { width: 1px; height: 28px; background: rgba(56,189,248,0.1); flex-shrink: 0; }
+    .rw-block { display: flex; flex-direction: column; gap: 2px; }
+    .rw-val { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 1rem; color: #22d3ee; }
+    .rw-sub { font-size: 0.62rem; color: #475569; }
+    .rw-formula {
+      flex: 1; font-size: 0.68rem; color: #334155;
+      background: rgba(255,255,255,0.02); border-radius: 6px;
+      padding: 6px 10px; border: 1px solid rgba(56,189,248,0.06);
+      min-width: 180px;
+    }
+    .rw-formula span { color: #475569; }
   </style>
 </head>
 <body>
@@ -213,7 +277,7 @@
     <div class="logo-meta">© Matthias Kuchler</div>
   </div>
   <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end">
-    <button id="version-badge" onclick="document.getElementById('modal-changelog').classList.add('show')">v1.5.1</button>
+    <button id="version-badge" onclick="document.getElementById('modal-changelog').classList.add('show')">v1.6.0</button>
     <div id="sync-indicator">
       <div id="sync-dot" class="loading"></div>
       <span id="sync-text">Verbinde...</span>
@@ -230,6 +294,30 @@
   <div class="stat-box"><div class="stat-label">REKLAMIERT</div><div class="stat-value" id="stat-reklamiert" style="color:#fbbf24">0</div></div>
 </div>
 
+<!-- Reichweiten-Prognose -->
+<div id="reichweite-bar">
+  <div id="reichweite-inner">
+    <div class="rw-block">
+      <div class="rw-label">VORRAT ARCHIV</div>
+      <div class="rw-val" id="rw-archiv-count">—</div>
+      <div class="rw-sub">Sensoren</div>
+    </div>
+    <div class="rw-divider"></div>
+    <div class="rw-block">
+      <div class="rw-label">VORRAT TAGE</div>
+      <div class="rw-val" id="rw-days">—</div>
+      <div class="rw-sub" id="rw-days-sub">Tage</div>
+    </div>
+    <div class="rw-divider"></div>
+    <div class="rw-block">
+      <div class="rw-label">REICHT BIS</div>
+      <div class="rw-val" id="rw-until" style="color:#22d3ee">—</div>
+      <div class="rw-sub" id="rw-until-sub">Datum</div>
+    </div>
+    <div class="rw-formula" id="rw-formula">—</div>
+  </div>
+</div>
+
 <div id="haltb-stats">
   <div id="haltb-stats-title">HALTBARKEIT NACH DATUM</div>
   <div id="haltb-stats-body"></div>
@@ -241,6 +329,15 @@
   <button class="tab-btn" data-tab="abgelaufen" id="tab-abgelaufen" style="color:#f87171">Abgelaufen (0)</button>
   <button class="tab-btn" data-tab="reklamiert" id="tab-reklamiert">Reklamiert (0)</button>
   <button class="tab-btn" data-tab="statistik" id="tab-statistik">Statistik</button>
+</div>
+
+<div id="search-bar">
+  <div id="search-wrap">
+    <span id="search-icon">🔍</span>
+    <input type="text" id="search-input" placeholder="Seriennummer suchen…" autocomplete="off" autocorrect="off" spellcheck="false" />
+    <span id="search-count"></span>
+    <button id="search-clear" title="Suche löschen">✕</button>
+  </div>
 </div>
 
 <div id="sensor-list"></div>
@@ -313,7 +410,22 @@
     </div>
 
     <div class="cl-row">
-      <div class="cl-tag latest">v1.5.1</div>
+      <div class="cl-tag latest">v1.6.0</div>
+      <div class="cl-date">24.05.2025</div>
+      <div class="cl-desc">Reichweiten-Prognose: Vorrat × 15 + aktiver Sensor = Reicht bis</div>
+    </div>
+    <div class="cl-row">
+      <div class="cl-tag">v1.5.3</div>
+      <div class="cl-date">24.05.2025</div>
+      <div class="cl-desc">Suche tabübergreifend — Bearbeiten direkt aus Suchergebnis</div>
+    </div>
+    <div class="cl-row">
+      <div class="cl-tag">v1.5.2</div>
+      <div class="cl-date">24.05.2025</div>
+      <div class="cl-desc">Suchfunktion — Teil- oder vollständige Seriennummer mit Highlight</div>
+    </div>
+    <div class="cl-row">
+      <div class="cl-tag">v1.5.1</div>
       <div class="cl-date">24.05.2025</div>
       <div class="cl-desc">Seriennummer eindeutig — Duplikat-Prüfung mit Live-Fehlermeldung</div>
     </div>
@@ -378,7 +490,8 @@ let editId = null;
 let deleteTargetId = null;
 let formAktiv = true;
 let formFix = false;
-let formHadAktiv = false; // tracks if sensor was ever active (allows reklamation)
+let formHadAktiv = false;
+let searchQuery = '';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -695,6 +808,85 @@ function renderStatistikTab() {
   </div>`;
 }
 
+// ─── Reichweiten-Prognose ─────────────────────────────────────────────────────
+function calcReichweite() {
+  const rwBar = document.getElementById('reichweite-bar');
+
+  // Archiv-Sensoren: passiv, nicht abgelaufen, nicht reklamiert
+  const archivVorrat = sensors.filter(s => {
+    if (s.aktiv) return false;
+    if (s.reklamiert) return false;
+    const p = wearProgress(s.setzdatum);
+    if (p && p.expired) return false;
+    return true;
+  });
+
+  // Aktiver Sensor (erster aktiver, nicht abgelaufener)
+  const aktivSensor = sensors.find(s => {
+    if (!s.aktiv) return false;
+    const p = wearProgress(s.setzdatum);
+    return p && !p.expired;
+  });
+
+  if (archivVorrat.length === 0 && !aktivSensor) {
+    rwBar.style.display = 'none';
+    return;
+  }
+
+  rwBar.style.display = '';
+
+  const vorratTage = archivVorrat.length * 15;
+
+  // Startpunkt: Ende des aktiven Sensors oder heute
+  let startDatum;
+  let aktivEnde = null;
+  if (aktivSensor && wearProgress(aktivSensor.setzdatum)) {
+    aktivEnde = wearProgress(aktivSensor.setzdatum).end;
+    startDatum = new Date(aktivEnde);
+  } else {
+    startDatum = new Date();
+  }
+
+  // Reichweite = Startdatum + Vorratstage
+  const reichBis = new Date(startDatum);
+  reichBis.setDate(reichBis.getDate() + vorratTage);
+
+  // Display
+  document.getElementById('rw-archiv-count').textContent = archivVorrat.length;
+  document.getElementById('rw-days').textContent = vorratTage;
+  document.getElementById('rw-days-sub').textContent = `${archivVorrat.length} × 15 Tage`;
+  document.getElementById('rw-until').textContent = fmtDate(reichBis);
+
+  // Days from today to reichBis
+  const daysFromNow = Math.ceil((reichBis - new Date()) / 86400000);
+  document.getElementById('rw-until-sub').textContent =
+    daysFromNow > 0 ? `in ${daysFromNow} Tagen` : 'überschritten';
+
+  // Formula explanation
+  const formulaParts = [];
+  if (aktivSensor) {
+    formulaParts.push(`Aktiver Sensor läuft ab: <span>${fmtDate(aktivEnde)}</span>`);
+  }
+  formulaParts.push(`+ ${archivVorrat.length} Archiv-Sensor${archivVorrat.length!==1?'en':''} × 15 Tage = <span>${vorratTage} Tage</span>`);
+  formulaParts.push(`→ Reicht bis: <span style="color:#22d3ee">${fmtDate(reichBis)}</span>`);
+  document.getElementById('rw-formula').innerHTML = formulaParts.join('<br>');
+}
+
+// ─── Search helpers ───────────────────────────────────────────────────────────
+function highlightSN(sn) {
+  if (!searchQuery) return sn;
+  const idx = sn.toLowerCase().indexOf(searchQuery.toLowerCase());
+  if (idx === -1) return sn;
+  return sn.slice(0,idx) +
+    `<span class="search-highlight">${sn.slice(idx, idx+searchQuery.length)}</span>` +
+    sn.slice(idx+searchQuery.length);
+}
+
+function applySearch(list) {
+  if (!searchQuery) return list;
+  return list.filter(s => s.seriennummer.toLowerCase().includes(searchQuery.toLowerCase()));
+}
+
 // ─── Render ───────────────────────────────────────────────────────────────────
 function render() {
   const aktiv      = sensors.filter(s=>s.aktiv);
@@ -712,13 +904,18 @@ function render() {
   document.getElementById('tab-reklamiert').textContent = `Reklamiert (${reklamiert.length})`;
   document.getElementById('tab-abgelaufen').textContent = `Abgelaufen (${abgelaufen.length})`;
 
-  // Highlight abgelaufen tab if there are expired sensors
   const abgTab = document.getElementById('tab-abgelaufen');
   abgTab.style.color = currentTab === 'abgelaufen' ? '#f87171' : abgelaufen.length > 0 ? '#f87171' : '#475569';
 
+  // Reichweiten-Prognose always update
+  calcReichweite();
+
+  // Search bar visibility
+  document.getElementById('search-bar').style.display = currentTab === 'statistik' ? 'none' : '';
+
   const haltbEl = document.getElementById('haltb-stats');
   const hideStrip = ['statistik','reklamiert','abgelaufen'].includes(currentTab);
-  if (!hideStrip && sensors.length > 0) {
+  if (!hideStrip && sensors.length > 0 && !searchQuery) {
     haltbEl.style.display = '';
     document.getElementById('haltb-stats-body').innerHTML = buildHaltbStatistik();
   } else { haltbEl.style.display = 'none'; }
@@ -728,14 +925,74 @@ function render() {
   if (currentTab === 'abgelaufen') { renderAbgelaufenTab();  return; }
 
   const list = document.getElementById('sensor-list');
-  const displayed = currentTab === 'aktiv' ? aktiv : passiv;
+  const countEl = document.getElementById('search-count');
+  const clearEl = document.getElementById('search-clear');
 
-  if (displayed.length === 0) {
+  // When searching: search ALL sensors across all tabs
+  if (searchQuery) {
+    const allFiltered = applySearch(sensors);
+    countEl.textContent = `${allFiltered.length} von ${sensors.length} Sensoren`;
+    countEl.style.display = '';
+    clearEl.style.display = '';
+
+    if (allFiltered.length === 0) {
+      list.innerHTML = `<div class="empty-state"><div class="empty-icon">🔍</div>Kein Sensor mit „${searchQuery}" gefunden</div>`;
+      return;
+    }
+
+    list.innerHTML = `<div style="font-size:0.62rem;color:#475569;letter-spacing:0.1em;padding:0 0 10px 0">SUCHE IN ALLEN TABS</div>` +
+      allFiltered.map(s => {
+        const p = wearProgress(s.setzdatum);
+        const expired = p?.expired;
+        const cardClass = s.aktiv?(expired?'sensor-card expired':'sensor-card'):'sensor-card passiv';
+        const badgeClass = s.aktiv?(expired?'status-badge badge-expired':'status-badge badge-aktiv'):'status-badge badge-archiv';
+        const badgeText = s.aktiv?(expired?'ABGELAUFEN':'AKTIV'):'ARCHIV';
+        const reklBadge = s.reklamiert ? `<span class="status-badge badge-reklamiert">REKLAMIERT</span>` : '';
+        const progressHTML = s.aktiv&&p?`
+          <div class="progress-header">
+            <span class="progress-day">Tag ${p.daysWorn} / 15</span>
+            <span class="progress-remain ${expired?'expired':''}">${expired?'Sensor abgelaufen':`noch ${p.daysLeft} Tag${p.daysLeft!==1?'e':''}`}</span>
+          </div>
+          <div class="progress-track"><div class="progress-fill" style="width:${p.pct}%;background:${expired?'linear-gradient(90deg,#dc2626,#f87171)':p.pct>80?'linear-gradient(90deg,#0e6eb8,#fb923c)':'linear-gradient(90deg,#0e6eb8,#38bdf8)'}"></div></div>`:'';
+        const reklInfo = s.reklamiert ? `<div style="margin-top:8px;padding:6px 10px;background:rgba(234,179,8,0.06);border:1px solid rgba(234,179,8,0.2);border-radius:6px;font-size:0.72rem;color:#fbbf24">⚑ Reklamiert am: ${fmtDate(s.reklamationsdatum)}</div>` : '';
+        return `<div class="${cardClass}">
+          <div class="card-top">
+            <div>
+              <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px">
+                <span class="card-sn">${highlightSN(s.seriennummer)}</span>
+                <span class="${badgeClass}">${badgeText}</span>
+                ${reklBadge}
+              </div>
+              <div class="card-sub">Haltbarkeit: ${fmtDate(s.haltbarkeit)}</div>
+            </div>
+            <div class="card-actions">
+              <button class="btn-edit" onclick="openEdit('${s.id}')">Bearb.</button>
+              <button class="btn-del" onclick="openDelete('${s.id}')">✕</button>
+            </div>
+          </div>
+          <div class="info-grid">
+            <div><div class="info-label">GESETZT AM</div><div class="info-value">${fmtDT(s.setzdatum)}</div></div>
+            <div><div class="info-label">TRAGEDAUER BIS</div><div class="info-value ${expired?'expired':''}">${p?fmtDT(p.end):'—'}</div></div>
+          </div>
+          ${progressHTML}
+          ${reklInfo}
+        </div>`;
+      }).join('');
+    return;
+  }
+
+  // No search — normal tab view
+  countEl.style.display = 'none';
+  clearEl.style.display = 'none';
+
+  let baseList = currentTab === 'aktiv' ? aktiv : passiv;
+
+  if (baseList.length === 0) {
     list.innerHTML = `<div class="empty-state"><div class="empty-icon">◎</div>${currentTab==='aktiv'?'Keine aktiven Sensoren':'Keine archivierten Sensoren'}</div>`;
     return;
   }
 
-  list.innerHTML = displayed.map(s => {
+  list.innerHTML = baseList.map(s => {
     const p = wearProgress(s.setzdatum);
     const expired = p?.expired;
     const cardClass = s.aktiv?(expired?'sensor-card expired':'sensor-card'):'sensor-card passiv';
@@ -904,10 +1161,27 @@ document.getElementById('del-confirm').addEventListener('click',async()=>{
   deleteTargetId=null;
 });
 
+// ─── Search ───────────────────────────────────────────────────────────────────
+document.getElementById('search-input').addEventListener('input', e => {
+  searchQuery = e.target.value.trim();
+  render();
+});
+document.getElementById('search-clear').addEventListener('click', () => {
+  searchQuery = '';
+  document.getElementById('search-input').value = '';
+  document.getElementById('search-input').focus();
+  render();
+});
+
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 document.querySelectorAll('.tab-btn').forEach(btn=>{
   btn.addEventListener('click',()=>{
     currentTab=btn.dataset.tab;
+    // Only clear search when switching to tabs where search doesn't apply
+    if(['statistik'].includes(currentTab)){
+      searchQuery='';
+      document.getElementById('search-input').value='';
+    }
     document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
     render();
