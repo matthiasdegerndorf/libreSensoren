@@ -812,12 +812,16 @@ function renderStatistikTab() {
 function calcReichweite() {
   const rwBar = document.getElementById('reichweite-bar');
 
-  // Archiv-Sensoren: passiv, nicht abgelaufen, nicht reklamiert
+  // Archiv-Sensoren: passiv, nicht reklamiert, nicht abgelaufen
+  // Sensoren ohne Setzdatum werden voll gezählt (noch nicht eingesetzt)
   const archivVorrat = sensors.filter(s => {
     if (s.aktiv) return false;
     if (s.reklamiert) return false;
-    const p = wearProgress(s.setzdatum);
-    if (p && p.expired) return false;
+    // Nur ausschließen wenn Setzdatum vorhanden UND tatsächlich abgelaufen
+    if (s.setzdatum) {
+      const p = wearProgress(s.setzdatum);
+      if (p && p.expired) return false;
+    }
     return true;
   });
 
@@ -828,7 +832,7 @@ function calcReichweite() {
     return p && !p.expired;
   });
 
-  if (archivVorrat.length === 0 && !aktivSensor) {
+  if (archivVorrat.length === 0) {
     rwBar.style.display = 'none';
     return;
   }
