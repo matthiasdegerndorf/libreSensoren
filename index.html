@@ -10,7 +10,8 @@
   ║  v1.1.0    2025-05-01    Haltbarkeits-Statistik             ║
   ║  v1.2.0    2025-05-01    Statistik-Tab, Monatsübersicht     ║
   ║  v1.3.0    2025-05-24    Supabase Cloud-Sync (Echtzeit)     ║
-  ║  v1.6.0    2025-05-24    Reichweiten-Prognose (Vorrat x 15 Tage)      ║
+  ║  v1.6.2    2025-05-24    Archiv: Sortierung + hervorgehobene Felder
+  ║  v1.6.1    2025-05-24    Cache-Buster Reichweiten-Fix               ║
   ║  v1.5.1    2025-05-24    Seriennummer eindeutig (Duplikat-Prüfung) ║
   ║  v1.5.0    2025-05-24    Reiter Abgelaufen mit Übersicht     ║
   ║  v1.4.0    2025-05-24    Reklamation: Feld, Tab, Statistik   ║
@@ -27,7 +28,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
-  <title>Libre 3 Sensor Manager v1.6.1</title>
+  <title>Libre 3 Sensor Manager v1.6.2</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
@@ -280,7 +281,7 @@
     <div class="logo-meta">© Matthias Kuchler</div>
   </div>
   <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end">
-    <button id="version-badge" onclick="document.getElementById('modal-changelog').classList.add('show')">v1.6.1</button>
+    <button id="version-badge" onclick="document.getElementById('modal-changelog').classList.add('show')">v1.6.2</button>
     <div id="sync-indicator">
       <div id="sync-dot" class="loading"></div>
       <span id="sync-text">Verbinde...</span>
@@ -413,7 +414,17 @@
     </div>
 
     <div class="cl-row">
-      <div class="cl-tag latest">v1.6.0</div>
+      <div class="cl-tag latest">v1.6.2</div>
+      <div class="cl-date">25.05.2025</div>
+      <div class="cl-desc">Archiv: Sortierung nach Haltbarkeit + hervorgehobene Felder</div>
+    </div>
+    <div class="cl-row">
+      <div class="cl-tag">v1.6.1</div>
+      <div class="cl-date">25.05.2025</div>
+      <div class="cl-desc">Reichweiten-Prognose Cache-Fix</div>
+    </div>
+    <div class="cl-row">
+      <div class="cl-tag">v1.6.0</div>
       <div class="cl-date">24.05.2025</div>
       <div class="cl-desc">Reichweiten-Prognose: Vorrat × 15 + aktiver Sensor = Reicht bis</div>
     </div>
@@ -994,6 +1005,16 @@ function render() {
 
   let baseList = currentTab === 'aktiv' ? aktiv : passiv;
 
+  // Archiv: sortieren nach Haltbarkeit aufsteigend (kein Datum ans Ende)
+  if (currentTab === 'passiv') {
+    baseList = [...baseList].sort((a, b) => {
+      if (!a.haltbarkeit && !b.haltbarkeit) return 0;
+      if (!a.haltbarkeit) return 1;
+      if (!b.haltbarkeit) return -1;
+      return a.haltbarkeit.localeCompare(b.haltbarkeit);
+    });
+  }
+
   if (baseList.length === 0) {
     list.innerHTML = `<div class="empty-state"><div class="empty-icon">◎</div>${currentTab==='aktiv'?'Keine aktiven Sensoren':'Keine archivierten Sensoren'}</div>`;
     return;
@@ -1002,6 +1023,7 @@ function render() {
   list.innerHTML = baseList.map(s => {
     const p = wearProgress(s.setzdatum);
     const expired = p?.expired;
+    const isArchiv = !s.aktiv;
     const cardClass = s.aktiv?(expired?'sensor-card expired':'sensor-card'):'sensor-card passiv';
     const badgeClass = s.aktiv?(expired?'status-badge badge-expired':'status-badge badge-aktiv'):'status-badge badge-archiv';
     const badgeText = s.aktiv?(expired?'ABGELAUFEN':'AKTIV'):'ARCHIV';
@@ -1013,6 +1035,31 @@ function render() {
       </div>
       <div class="progress-track"><div class="progress-fill" style="width:${p.pct}%;background:${expired?'linear-gradient(90deg,#dc2626,#f87171)':p.pct>80?'linear-gradient(90deg,#0e6eb8,#fb923c)':'linear-gradient(90deg,#0e6eb8,#38bdf8)'}"></div></div>`:'';
     const reklInfo = s.reklamiert ? `<div style="margin-top:8px;padding:6px 10px;background:rgba(234,179,8,0.06);border:1px solid rgba(234,179,8,0.2);border-radius:6px;font-size:0.72rem;color:#fbbf24">⚑ Reklamiert am: ${fmtDate(s.reklamationsdatum)}</div>` : '';
+
+    // Archiv: hervorgehobene Haltbarkeit + Tragedauer-bis
+    const archivInfo = isArchiv ? `
+      <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div style="background:rgba(56,189,248,0.05);border:1px solid rgba(56,189,248,0.12);border-radius:8px;padding:10px 12px">
+          <div style="font-size:0.6rem;color:#475569;letter-spacing:0.1em;margin-bottom:4px">HALTBAR BIS</div>
+          <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:1rem;color:#e8f4ff">${fmtDate(s.haltbarkeit)||'—'}</div>
+        </div>
+        <div style="background:rgba(56,189,248,0.05);border:1px solid rgba(56,189,248,0.12);border-radius:8px;padding:10px 12px">
+          <div style="font-size:0.6rem;color:#475569;letter-spacing:0.1em;margin-bottom:4px">TRAGEDAUER BIS</div>
+          <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:1rem;color:${expired?'#f87171':'#38bdf8'}">${p?fmtDT(p.end):'—'}</div>
+        </div>
+      </div>` : '';
+
+    // Info-grid nur für Aktiv-Tab (Archiv hat eigene Darstellung oben)
+    const infoGrid = !isArchiv ? `
+      <div class="info-grid">
+        <div><div class="info-label">GESETZT AM</div><div class="info-value">${fmtDT(s.setzdatum)}</div></div>
+        <div><div class="info-label">TRAGEDAUER BIS</div><div class="info-value ${expired?'expired':''}">${p?fmtDT(p.end):'—'}</div></div>
+      </div>` : `
+      <div class="info-grid" style="margin-bottom:0">
+        <div><div class="info-label">GESETZT AM</div><div class="info-value">${fmtDT(s.setzdatum)||'—'}</div></div>
+        <div><div class="info-label">EINGELAGERT AM</div><div class="info-value">${fmtDate(s.savedAt)}</div></div>
+      </div>`;
+
     return `<div class="${cardClass}">
       <div class="card-top">
         <div>
@@ -1021,17 +1068,14 @@ function render() {
             <span class="${badgeClass}">${badgeText}</span>
             ${reklBadge}
           </div>
-          <div class="card-sub">Haltbarkeit: ${fmtDate(s.haltbarkeit)}</div>
         </div>
         <div class="card-actions">
           <button class="btn-edit" onclick="openEdit('${s.id}')">Bearb.</button>
           <button class="btn-del" onclick="openDelete('${s.id}')">✕</button>
         </div>
       </div>
-      <div class="info-grid">
-        <div><div class="info-label">GESETZT AM</div><div class="info-value">${fmtDT(s.setzdatum)}</div></div>
-        <div><div class="info-label">TRAGEDAUER BIS</div><div class="info-value ${expired?'expired':''}">${p?fmtDT(p.end):'—'}</div></div>
-      </div>
+      ${infoGrid}
+      ${archivInfo}
       ${progressHTML}
       ${reklInfo}
     </div>`;
