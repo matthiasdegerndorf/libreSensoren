@@ -10,7 +10,7 @@
   ║  v1.1.0    2025-05-01    Haltbarkeits-Statistik             ║
   ║  v1.2.0    2025-05-01    Statistik-Tab, Monatsübersicht     ║
   ║  v1.3.0    2025-05-24    Supabase Cloud-Sync (Echtzeit)     ║
-  ║  v1.6.3    2025-05-24    Archiv: Sortierung + hervorgehobene Felder
+  ║  v1.6.4    2025-05-24    Archiv: Sortierung + hervorgehobene Felder
   ║  v1.6.1    2025-05-24    Cache-Buster Reichweiten-Fix               ║
   ║  v1.5.1    2025-05-24    Seriennummer eindeutig (Duplikat-Prüfung) ║
   ║  v1.5.0    2025-05-24    Reiter Abgelaufen mit Übersicht     ║
@@ -28,7 +28,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
-  <title>Libre 3 Sensor Manager v1.6.3</title>
+  <title>Libre 3 Sensor Manager v1.6.4</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
@@ -281,7 +281,7 @@
     <div class="logo-meta">© Matthias Kuchler</div>
   </div>
   <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end">
-    <button id="version-badge" onclick="document.getElementById('modal-changelog').classList.add('show')">v1.6.3</button>
+    <button id="version-badge" onclick="document.getElementById('modal-changelog').classList.add('show')">v1.6.4</button>
     <div id="sync-indicator">
       <div id="sync-dot" class="loading"></div>
       <span id="sync-text">Verbinde...</span>
@@ -414,7 +414,12 @@
     </div>
 
     <div class="cl-row">
-      <div class="cl-tag latest">v1.6.3</div>
+      <div class="cl-tag latest">v1.6.4</div>
+      <div class="cl-date">07.06.2026</div>
+      <div class="cl-desc">Wochentag bei allen Datums- und Zeitfeldern</div>
+    </div>
+    <div class="cl-row">
+      <div class="cl-tag">v1.6.3</div>
       <div class="cl-date">07.06.2026</div>
       <div class="cl-desc">Aktiv-Tab: Tragedauer bis hervorgehoben, analog Archiv</div>
     </div>
@@ -520,11 +525,11 @@ function nowLocalISO() {
 }
 function fmtDate(s) {
   if (!s) return '—';
-  return new Date(s).toLocaleDateString('de-DE', {day:'2-digit',month:'2-digit',year:'numeric'});
+  return new Date(s).toLocaleDateString('de-DE', {weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'});
 }
 function fmtDT(s) {
   if (!s) return '—';
-  return new Date(s).toLocaleString('de-DE', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  return new Date(s).toLocaleString('de-DE', {weekday:'short',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
 }
 function wearEnd(sz) {
   if (!sz) return null;
